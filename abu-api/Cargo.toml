@@ -1,0 +1,18 @@
+[package]
+name = "abu-api"
+version = { workspace = true }
+edition = { workspace = true }
+description = { workspace = true }
+keywords = { workspace = true }
+license = { workspace = true }
+
+
+[dependencies]
+thiserror = { workspace = true }
+dotenv = { workspace = true }
+async-trait = { workspace = true }
+derive_builder = { workspace = true }
+reqwest = { workspace = true, features = ["json", "blocking"] }
+strum = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
