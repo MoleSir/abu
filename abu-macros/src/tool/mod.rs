@@ -13,19 +13,20 @@ use syn::{
 pub fn tool_impl(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let abu = crate::utils::get_abu_path();
 
-    // Parse attr
+    let mut input_fn = parse_macro_input!(item as ItemFn);
     let tool_attr = parse_macro_input!(attr as ToolAttr);
+
+    // Parse attr
     let struct_name = tool_attr.struct_name;
-    let name = tool_attr.name.value();
+    let name = tool_attr.name.map(|m| m.value()).unwrap_or_else(|| input_fn.sig.ident.to_string());
     let description = tool_attr.description.value();
-    let params = tool_attr.params;
 
     // Parse function
-    let input_fn = parse_macro_input!(item as ItemFn);
-    let params_info = parse_params(&input_fn);
+    let params_info = parse_params(&mut input_fn);
     let args_trans_code = generate_args_transform_code(&params_info);
     let required_list_code = generate_required_list_code(&params_info);
     let return_code = generate_return_code(&input_fn, &params_info, &struct_name);
+    let properties = generate_params_properties(&params_info);
 
     let code = quote! {
         pub struct #struct_name;
@@ -45,7 +46,7 @@ pub fn tool_impl(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
                     {
                         "type": "object",
                         "properties": {
-                            #params
+                            #properties
                         },
                         "required": [ #(#required_list_code)* ],
                     }

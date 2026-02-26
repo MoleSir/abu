@@ -4,6 +4,7 @@ use syn::{
 use proc_macro2;
 use quote::quote;
 
+#[derive(Clone, Copy)]
 pub enum ParamType {
     I64,
     USize,
@@ -14,12 +15,13 @@ pub enum ParamType {
 pub struct Param {
     pub name: Ident,
     pub typ: ParamType,
+    pub description: Option<String>,
 }
 
-pub fn parse_params(input_fn: &ItemFn) -> Vec<Param> {
-    let inputs = &input_fn.sig.inputs;
+pub fn parse_params(input_fn: &mut ItemFn) -> Vec<Param> {
+    let inputs = &mut input_fn.sig.inputs;
 
-    inputs.iter().map(|arg| -> Param {
+    inputs.iter_mut().map(|arg| -> Param {
         if let FnArg::Typed(pat_type) = arg {
             let param_name = if let syn::Pat::Ident(ident) = &*pat_type.pat {
                 &ident.ident
@@ -36,10 +38,30 @@ pub fn parse_params(input_fn: &ItemFn) -> Vec<Param> {
                 Type::Reference(type_ref) if matches!(type_ref.elem.as_ref(), Type::Path(tp) if tp.path.is_ident("str")) => ParamType::Str,
                 _ => panic!("")
             };
+            
+            let mut next_attrs = Vec::new();
+            let mut description = None;    
+            for attr in &pat_type.attrs {
+                if attr.path().is_ident("arg") {
+                    attr.parse_nested_meta(|meta| {
+                        if meta.path.is_ident("description") {
+                            let value: syn::LitStr = meta.value()?.parse()?;
+                            description = Some(value.value());
+                            Ok(())
+                        } else {
+                            Err(meta.error("unknown key in arg"))
+                        }
+                    }).expect("parse meta");
+                } else {
+                    next_attrs.push(attr.clone());
+                }
+            }
+            pat_type.attrs = next_attrs;
 
             Param {
                 name: param_name.clone(),
                 typ: param_type_enum,
+                description,
             }  
         } else {
             panic!("")
@@ -83,6 +105,30 @@ pub fn generate_required_list_code(params_info: &[Param]) -> Vec<proc_macro2::To
         });
     }
     required_list_code
+}
+
+pub fn generate_params_properties(params_info: &[Param]) -> proc_macro2::TokenStream {
+    let properties = params_info
+        .iter()
+        .map(generate_param_propertie);
+
+    quote! {
+        #(#properties),*
+    }
+}
+
+fn generate_param_propertie(param: &Param) -> proc_macro2::TokenStream {
+    // "content": {"type": "string"}
+    let name = param.name.to_string();
+    let type_string = param_type_to_string(param.typ);
+    match &param.description {
+        Some(desc) => quote! {
+            #name : { "type": #type_string, "description": #desc }
+        },
+        None => quote! {
+            #name : { "type": #type_string }
+        },
+    }
 }
 
 pub fn generate_return_code(input_fn: &ItemFn, params_info: &[Param], struct_name: &Ident) -> proc_macro2::TokenStream {
@@ -163,5 +209,14 @@ pub fn generate_return_code(input_fn: &ItemFn, params_info: &[Param], struct_nam
                 }
             }
         }
+    }
+}
+
+fn param_type_to_string(tp: ParamType) -> &'static str {
+    match tp {
+        ParamType::I64 => "i64",
+        ParamType::USize => "i64",
+        ParamType::Str => "string",
+        ParamType::String => "string",
     }
 }

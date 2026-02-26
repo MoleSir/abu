@@ -1,48 +1,78 @@
-use syn::{
-    bracketed, 
-    parse::{Parse, ParseStream}, 
-    Ident,
-    LitStr, Result, 
-    Token,
-};
-use proc_macro2::TokenStream as TokenStream2;
+use syn::{parse::{Parse, ParseStream}, punctuated::Punctuated, Ident, LitStr, Result, Token};
 
 pub struct ToolAttr {
     pub struct_name: Ident,
-    pub name: LitStr,
+    pub name: Option<LitStr>,
     pub description: LitStr,
-    pub params: TokenStream2,
 }
 
 impl Parse for ToolAttr {
     fn parse(input: ParseStream) -> Result<Self> {
-        let _struct_name = input.parse::<Ident>()?;
-        input.parse::<Token![=]>()?;
-        let struct_name_value = input.parse::<Ident>()?;
-        input.parse::<Token![,]>()?;
+        let mut struct_name: Option<Ident> = None;
+        let mut name: Option<LitStr> = None;
+        let mut description: Option<LitStr> = None;
 
-        let _name = input.parse::<Ident>()?;
-        input.parse::<Token![=]>()?;
-        let name_value = input.parse::<LitStr>()?;
-        input.parse::<Token![,]>()?;
+        let metas = Punctuated::<syn::Meta, Token![,]>::parse_terminated(input)?;
+    
+        for meta in metas {
+            match meta {
+                syn::Meta::NameValue(nv) => {
+                    let ident = nv.path.get_ident()
+                        .ok_or_else(|| syn::Error::new_spanned(&nv.path, "expected ident"))?
+                        .to_string();
 
-        let _description = input.parse::<Ident>()?;
-        input.parse::<Token![=]>()?;
-        let description_value = input.parse::<LitStr>()?;
-        input.parse::<Token![,]>()?;
-
-        let _arg_name = input.parse::<Ident>()?;
-        input.parse::<Token![=]>()?;
-
-        let content;
-        bracketed!(content in input);
-        let params: TokenStream2 = content.parse::<TokenStream2>()?;
+                    match ident.as_str() {
+                        "struct_name" => {
+                            if let syn::Expr::Path(expr_path) = nv.value {
+                                if let Some(id) = expr_path.path.get_ident() {
+                                    struct_name = Some(id.clone());
+                                } else {
+                                    return Err(syn::Error::new_spanned(expr_path, "invalid struct_name"));
+                                }
+                            } else {
+                                return Err(syn::Error::new_spanned(nv.value, "expected ident"));
+                            }
+                        }
+                        "name" => {
+                            if let syn::Expr::Lit(expr_lit) = nv.value {
+                                if let syn::Lit::Str(lit_str) = expr_lit.lit {
+                                    name = Some(lit_str);
+                                } else {
+                                    return Err(syn::Error::new_spanned(expr_lit, "expected string"));
+                                }
+                            }
+                        }
+                        "description" => {
+                            if let syn::Expr::Lit(expr_lit) = nv.value {
+                                if let syn::Lit::Str(lit_str) = expr_lit.lit {
+                                    description = Some(lit_str);
+                                } else {
+                                    return Err(syn::Error::new_spanned(expr_lit, "expected string"));
+                                }
+                            }
+                        }
+                        _ => {
+                            return Err(syn::Error::new_spanned(
+                                nv.path,
+                                "unknown attribute key"
+                            ));
+                        }
+                    }
+                }
+                _ => {
+                    return Err(syn::Error::new_spanned(meta, "unsupported meta"));
+                }
+            }
+        }
 
         Ok(ToolAttr {
-            struct_name: struct_name_value,
-            name: name_value,
-            description: description_value,
-            params,
+            struct_name: struct_name.ok_or_else(|| {
+                syn::Error::new(input.span(), "struct_name is required")
+            })?,
+            name,
+            description: description.ok_or_else(|| {
+                syn::Error::new(input.span(), "description is required")
+            })?,
         })
     }
 }

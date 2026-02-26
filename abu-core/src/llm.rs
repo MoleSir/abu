@@ -175,16 +175,13 @@ mod test {
 
     #[abu_macros::tool(
         struct_name = Echo,
-        name = "echo",
         description = "A echo tool.",
-        args = [
-            "content" : {
-                "type": "string",
-                "description": "to echo",
-            }
-        ]
     )]
-    fn echo(content: &str) {
+    fn echo(
+        #[arg(description="string to echo")] 
+        content: &str,
+    ) 
+    {
         println!("echo: {}", content);
     }
 
@@ -194,7 +191,9 @@ mod test {
         let mut session = LLMSession::new(llm);
         session.add_tool(Echo::new());
         session.add_system_message("You are a helpful assistant.");
-        session.add_user_message("请调用 echo，传入你的名字");
+        session.add_user_message("请调用 echo，传入任意字符串");
+        assert_eq!(session.tools.len(), 1);
+        assert!(session.get_tool("echo").is_some());
 
         let msg = session.invoke().await.expect("invoke");
 
