@@ -185,7 +185,7 @@ mod test {
         ]
     )]
     fn echo(content: &str) {
-        eprintln!("{}", content);
+        println!("echo: {}", content);
     }
 
     #[tokio::test]
@@ -201,5 +201,7 @@ mod test {
         for tool_call in msg.tool_calls.iter() {
             session.execute_toolcall(tool_call).await.expect("tool call");
         }
+
+        println!("{:#?}", msg);
     }
 }
