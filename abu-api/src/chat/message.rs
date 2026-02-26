@@ -17,6 +17,30 @@ pub enum ChatMessage {
     Tool(ToolMessage),
 }
 
+impl Into<ChatMessage> for SystemMessage {
+    fn into(self) -> ChatMessage {
+        ChatMessage::System(self)
+    }
+}
+
+impl Into<ChatMessage> for UserMessage {
+    fn into(self) -> ChatMessage {
+        ChatMessage::User(self)
+    }
+}
+
+impl Into<ChatMessage> for AssistantMessage {
+    fn into(self) -> ChatMessage {
+        ChatMessage::Assistant(self)
+    }
+}
+
+impl Into<ChatMessage> for ToolMessage {
+    fn into(self) -> ChatMessage {
+        ChatMessage::Tool(self)
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct SystemMessage {
     /// The contents of the system message.
@@ -39,7 +63,7 @@ pub struct UserMessage {
 pub struct AssistantMessage {
     /// The contents of the system message.
     #[serde(default)]
-    pub content: Option<String>,
+    pub content: String,
     /// An optional name for the participant. Provides the model information to differentiate between participants of the same role.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub name: Option<String>,    
@@ -71,9 +95,9 @@ impl ChatMessage {
         })
     }
 
-    pub fn assistant(content: Option<impl Into<String>>, tool_calls: impl Into<Vec<ToolCall>>) -> Self {
+    pub fn assistant(content: impl Into<String>, tool_calls: impl Into<Vec<ToolCall>>) -> Self {
         Self::Assistant(AssistantMessage {
-            content: content.map(|c| c.into()),
+            content: content.into(),
             name: None,
             tool_calls: tool_calls.into(),
         })

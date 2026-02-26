@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "abu-api", 
+    "abu-core", 
+    "abu-macros", 
 ]
 
 
@@ -15,8 +17,11 @@ license = "MIT"
 
 [workspace.dependencies]
 abu-api = { path = "./abu-api", package = "abu-api", version = "0.1.0" }
+abu-core = { path = "./abu-core", package = "abu-core", version = "0.1.0" }
+abu-macros = { path = "./abu-macros", package = "abu-macros", version = "0.1.0" }
 
 thiserror = "2.0"
+tokio = "1.49"
 async-trait = "0.1"
 derive_builder = "0.20.2"
 reqwest = "0.12.15"
