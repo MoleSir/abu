@@ -1,0 +1,17 @@
+[package]
+name = "abu-skill"
+version = { workspace = true }
+edition = { workspace = true }
+description = { workspace = true }
+keywords = { workspace = true }
+license = { workspace = true }
+
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+serde_yaml = { workspace = true }
+walkdir = { workspace = true }
+tempfile = { workspace = true }
+regex = { workspace = true }

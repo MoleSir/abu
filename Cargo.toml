@@ -3,6 +3,7 @@ members = [
     "abu-api", 
     "abu-core", 
     "abu-mcp", 
+    "abu-skill", 
 
     "abu-macros", 
 ]
@@ -21,6 +22,8 @@ license = "MIT"
 abu-api = { path = "./abu-api", package = "abu-api", version = "0.1.0" }
 abu-core = { path = "./abu-core", package = "abu-core", version = "0.1.0" }
 abu-mcp = { path = "./abu-mcp", package = "abu-mcp", version = "0.1.0" }
+abu-skill = { path = "./abu-skill", package = "abu-skill", version = "0.1.0" }
+
 abu-macros = { path = "./abu-macros", package = "abu-macros", version = "0.1.0" }
 
 thiserror = "2.0"
@@ -31,6 +34,10 @@ reqwest = "0.12.15"
 strum = "0.25.0"
 serde = "1.0"
 serde_json = "1.0"
+serde_yaml = "0.9"
 dotenv = "0.15.0"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.20"
+walkdir = "2.5"
+tempfile = "3.26"
+regex = "1.12"
