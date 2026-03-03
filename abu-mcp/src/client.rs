@@ -1,26 +1,45 @@
 use crate::{
-    transport::{McpMessage, McpTransport}, 
-    McpError, McpErrorCode, McpNotification, McpRequest, McpRequestId, McpResource, McpResult, McpServerCapabilities, McpTool, McpToolCall, McpToolCallResult
+    transport::{McpMessage, McpTransport}, McpClientCapabilities, McpError, McpErrorCode, McpImplementation, McpNotification, McpRequest, McpRequestId, McpResource, McpResult, McpServerCapabilities, McpTool, McpToolCall, McpToolCallResult
 };
 use tracing::debug;
 
 pub struct McpClient<T: McpTransport> {
-    transport: T,
-    pub server_capabilites: Option<McpServerCapabilities>,
+    pub implementation: McpImplementation,
+    pub client_capabilities: McpClientCapabilities,
+    pub server_capabilities: Option<McpServerCapabilities>,
     pub server_tools: Vec<McpTool>,
     pub server_resources: Vec<McpResource>,
+
+    transport: T,
     request_counter: i64,
 }
 
 impl<T: McpTransport> McpClient<T> {
     pub fn new(transport: T) -> Self {
         Self {
+            implementation: McpImplementation {
+                name: "abu_mcp_client".to_string(),
+                version: "0.1.0".to_string(),
+            },
+            client_capabilities: McpClientCapabilities::default(), 
             transport,
-            server_capabilites: None,
+            server_capabilities: None,
             server_tools: vec![],
             server_resources: vec![],
             request_counter: 0,
         }
+    }
+
+    pub fn with_name(&mut self, name: impl Into<String>) {
+        self.implementation.name = name.into();
+    }
+
+    pub fn with_version(&mut self, version: impl Into<String>) {
+        self.implementation.version = version.into();
+    }
+
+    pub fn with_client_capabilities(&mut self, client_capabilities: McpClientCapabilities) {
+        self.client_capabilities = client_capabilities;
     }
 
     pub async fn request(
@@ -74,6 +93,8 @@ impl<T: McpTransport> McpClient<T> {
 impl<T: McpTransport> McpClient<T> {
     pub async fn initialize(&mut self) -> McpResult<McpServerCapabilities> {
         let params = serde_json::json!({
+            "clientInfo": self.implementation,
+            "capabilities": self.client_capabilities,
             "protocolVersion": crate::protocol::LATEST_PROTOCOL_VERSION,
         });
 
@@ -82,7 +103,7 @@ impl<T: McpTransport> McpClient<T> {
             .await?;
 
         let server_capabilities: McpServerCapabilities = serde_json::from_value(response)?;
-        self.server_capabilites = Some(server_capabilities.clone());
+        self.server_capabilities = Some(server_capabilities.clone());
 
         // self.notify("initialize", None).await?;
 

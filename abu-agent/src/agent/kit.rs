@@ -3,6 +3,7 @@ use std::{ffi::OsStr, path::PathBuf, sync::Arc};
 use abu_api::chat::{FunctionInfo, ToolCall, ToolDefinition, ToolType};
 use abu_mcp::{client::McpClient, transport::process::McpProcessTransport, McpError, McpTool, McpToolCall, McpToolCallResult, McpToolCallResultContent};
 use abu_skill::SkillLoader;
+use tracing::debug;
 use crate::{tool::{skill::SkillTool, Tool, ToolCollection}, AgentResult};
 
 pub struct AgentKit {
@@ -41,11 +42,13 @@ impl AgentKit {
     }
 
     pub fn add_tool<T: Tool + 'static>(&mut self, tool: T) {
+        debug!("add tool '{}'", tool.name());
         self.tool_definitions.push(tool.to_function_define());
         self.tools.add_tool(tool);
     } 
 
     pub fn add_tool_box(&mut self, tool: Box<dyn Tool>) {
+        debug!("add tool '{}'", tool.name());
         self.tool_definitions.push(tool.to_function_define());
         self.tools.add_tool_box(tool);
     }
@@ -55,6 +58,8 @@ impl AgentKit {
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
+        debug!("add mcp server");
+
         // create mcp clinet
         let transport = McpProcessTransport::new(cmd, args)?;
         let mut client = McpClient::new(transport);
@@ -98,8 +103,8 @@ fn mcp_tool_to_tool_defintion(mcp_tool: &McpTool) -> ToolDefinition {
         description: mcp_tool.description.clone().unwrap_or_default(),
         parameters: serde_json::json!({
             "type": "object",
-            "properties": mcp_tool.input_schema.properties,
-            "required": mcp_tool.input_schema.required
+            "properties": mcp_tool.input_schema.properties.clone().unwrap_or(serde_json::json!({})),
+            "required": mcp_tool.input_schema.required.clone().unwrap_or(serde_json::json!([])),
         })
     };
 
@@ -120,10 +125,10 @@ fn mcp_tool_call_result_to_string(mcp_tool_call: McpToolCallResult) -> String {
         })
         .collect::<Vec<&str>>()
         .join("\n");
-    if let Some(false) = mcp_tool_call.is_error {
-        context
-    } else {
+    if let Some(true) = mcp_tool_call.is_error {
         format!("execute tool failed for: {}", context)
+    } else {
+        context
     }
 }
 

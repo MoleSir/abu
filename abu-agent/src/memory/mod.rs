@@ -19,7 +19,8 @@ pub struct Memory {
 }
 
 impl Memory {
-    pub fn new(strategy: Box<dyn MemoryStrategy>, system_prompt: impl Into<String>) -> Self {
+    pub fn new(strategy: Box<dyn MemoryStrategy>, system_prompt: &str) -> Self {
+        let system_prompt = format!("{system_prompt}. Once you consider the work complete, call the terminate method.");
         Self {
             strategy,
             system_prompt: ChatMessage::system(system_prompt)

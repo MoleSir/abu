@@ -1,17 +1,27 @@
 use std::path::PathBuf;
 use crate::{llm::LLM, memory::{Memory, MemoryStrategy, Sequential}, tool::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWritor}, terminate::Terminator, Tool}, AgentResult};
-use super::{Agent, AgentKit};
+use super::{Agent, AgentConfig, AgentKit};
 
 const DEFAULT_SYSTEM_PROMPT: &str = "";
 
 pub struct AgentBuilder {
     pub llm: LLMBuilder,
+    pub config: AgentConfig,
     pub memory_strategy: Box<dyn MemoryStrategy>,
     pub system_prompt: Option<String>,
     pub with_skill: Option<PathBuf>,
     pub with_builin_tools: bool,
     pub tools: Vec<Box<dyn Tool>>,
     pub mcpservers: Vec<(String, Vec<String>)>,
+}
+
+impl Default for AgentConfig {
+    fn default() -> Self {
+        Self {
+            max_iteration: 10,
+            temperature: 0.7,
+        }
+    }
 }
 
 pub enum LLMBuilder {
@@ -23,7 +33,7 @@ impl AgentBuilder {
     pub async fn build(self) -> AgentResult<Agent> {
         let llm = self.llm.build()?;
         
-        let memory = Memory::new(self.memory_strategy, self.system_prompt.unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.to_string()));
+        let memory = Memory::new(self.memory_strategy, &self.system_prompt.unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.to_string()));
         let mut kit = AgentKit::new();
         kit.add_tool(Terminator::new());
 
@@ -48,6 +58,7 @@ impl AgentBuilder {
         }
 
         Ok(Agent {
+            config: self.config,
             llm,
             memory,
             kit
@@ -69,6 +80,7 @@ impl Default for AgentBuilder {
     fn default() -> Self {
         Self {
             llm: LLMBuilder::FromEnv,
+            config: AgentConfig::default(),
             memory_strategy: Box::new(Sequential::new()),
             system_prompt: None,
             with_skill: None,
@@ -89,6 +101,16 @@ impl AgentBuilder {
             llm: LLMBuilder::With { base_url: base_url.into(), api_key: api_key.into(), model: model.into() },
             ..Default::default()
         }
+    }
+
+    pub fn temperature(mut self, temperature: f64) -> Self {
+        self.config.temperature = temperature;
+        self
+    }
+
+    pub fn max_iteration(mut self, max_iteration: usize) -> Self {
+        self.config.max_iteration = max_iteration;
+        self
     }
 
     pub fn memory_strategy(mut self, memory_strategy: Box<dyn MemoryStrategy>) -> Self {
