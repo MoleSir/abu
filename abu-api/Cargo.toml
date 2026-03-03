@@ -16,3 +16,6 @@ reqwest = { workspace = true, features = ["json", "blocking"] }
 strum = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros"] }

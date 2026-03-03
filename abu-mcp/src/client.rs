@@ -1,6 +1,6 @@
 use crate::{
     transport::{McpMessage, McpTransport}, 
-    McpClientCapabilities, McpError, McpErrorCode, McpImplementation, McpNotification, McpRequest, McpRequestId, McpResource, McpResult, McpServerCapabilities, McpTool, McpToolCall, McpToolCallResult
+    McpError, McpErrorCode, McpNotification, McpRequest, McpRequestId, McpResource, McpResult, McpServerCapabilities, McpTool, McpToolCall, McpToolCallResult
 };
 use tracing::debug;
 
@@ -32,7 +32,6 @@ impl<T: McpTransport> McpClient<T> {
         let id = McpRequestId::Number(self.request_counter);
         self.request_counter += 1;
 
-        // 整理为 McpRequest，并且调用 transport 发送出去！
         let request = McpRequest::new(method, params, id.clone());
         self.transport.send(McpMessage::Request(request)).await?;
 
@@ -73,14 +72,8 @@ impl<T: McpTransport> McpClient<T> {
 }
 
 impl<T: McpTransport> McpClient<T> {
-    pub async fn initialize(
-        &mut self,
-        implementation: McpImplementation,
-        capabilities: McpClientCapabilities,
-    ) -> McpResult<McpServerCapabilities> {
+    pub async fn initialize(&mut self) -> McpResult<McpServerCapabilities> {
         let params = serde_json::json!({
-            "clientInfo": implementation,
-            "capabilities": capabilities,
             "protocolVersion": crate::protocol::LATEST_PROTOCOL_VERSION,
         });
 
@@ -96,13 +89,19 @@ impl<T: McpTransport> McpClient<T> {
         Ok(server_capabilities)
     }
 
-    pub async fn tools_list(&mut self) -> McpResult<Vec<McpTool>> {
+    pub async fn tools_list(&mut self) -> McpResult<()> {
         let response = self
             .request("tools/list", None)
             .await?;
         // Get 'tools' in response, it's a Vec<McpTool>
         let tools = response.get("tools").ok_or(McpError::Other("Except tools!".into()))?;
-        Ok(serde_json::from_value(tools.clone())?)
+        let tools = serde_json::from_value(tools.clone())?;
+        self.server_tools = tools;
+        Ok(())
+    }
+
+    pub fn has_tool(&self, tool_name: &str) -> bool {
+        self.server_tools.iter().any(|tool| tool.name == tool_name)
     }
 
     pub async fn tools_call(&mut self, tool_call: McpToolCall) -> McpResult<McpToolCallResult> {

@@ -92,6 +92,9 @@ pub struct ImageObject {
 
 impl ApiRequest for ImageRequest {
     type Response = ImageResponse;
+    fn url(base_url: &str) -> String {
+        format!("{}/images/generations", base_url)
+    }
 }
 
 impl ImageRequest {

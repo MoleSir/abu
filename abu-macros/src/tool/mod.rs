@@ -22,14 +22,31 @@ pub fn tool_impl(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
     let description = tool_attr.description.value();
 
     // Parse function
-    let params_info = parse_params(&mut input_fn);
+    let (params_info, is_associated) = parse_params(&mut input_fn);
     let args_trans_code = generate_args_transform_code(&params_info);
-    let required_list_code = generate_required_list_code(&params_info);
-    let return_code = generate_return_code(&input_fn, &params_info, &struct_name);
-    let properties = generate_params_properties(&params_info);
+    let return_code = generate_return_code(&input_fn, &params_info, &struct_name, is_associated);
+    let parameters = generate_parameters(&params_info);
+
+    let code = if is_associated {
+        quote! {}
+    } else {
+        quote! {
+            pub struct #struct_name;
+
+            impl #struct_name {
+                pub fn new() -> Self {
+                    Self
+                }
+            }
+        }
+    };
 
     let code = quote! {
-        pub struct #struct_name;
+        #code 
+
+        impl #struct_name {
+           #input_fn
+        }
 
         #[async_trait::async_trait]
         impl #abu::tool::Tool for #struct_name {
@@ -40,33 +57,20 @@ pub fn tool_impl(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
             fn description(&self) -> &'static str {
                 #description
             }
-        
-            fn parameters(&self) -> serde_json::Value {
-                serde_json::json!(
-                    {
-                        "type": "object",
-                        "properties": {
-                            #properties
-                        },
-                        "required": [ #(#required_list_code)* ],
-                    }
-                )
+
+            fn parameters(&self) -> Vec<#abu::tool::ToolParameter> {
+                vec![ #parameters ]
             }
-        
+
             async fn execute(&self, args: serde_json::Value) -> std::result::Result<String, #abu::tool::ToolError> {
                 #(#args_trans_code)*
                 #return_code
             }
         }
-
-        impl #struct_name {
-            pub fn new() -> Self {
-                Self
-            }
-
-            #input_fn
-        }
+        
     };    
+
+    // panic!("{}", code);
 
     code.into()
 }

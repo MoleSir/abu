@@ -1,12 +1,40 @@
 use crate::ApiRequest;
-
 use super::message::*;
 use super::tool::*;
 use super::ChatResponse;
-
 use derive_builder::Builder;
 use serde::Serialize;
 use strum::{Display, EnumString, EnumVariantNames};
+
+#[derive(Debug, Clone, Builder, Serialize)]
+#[builder(setter(into, strip_option))]
+pub struct ChatRequestRef<'a> {
+    /// A list of messages comprising the conversation so far.
+    #[builder(default)]
+    pub messages: Vec<&'a ChatMessage>,
+
+    /// ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.
+    pub model: String,
+
+    /// If set, partial message deltas will be sent, like in ChatGPT. Tokens will be sent as data-only server-sent events as they become available, with the stream terminated by a data: [DONE] message.
+    #[builder(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stream: Option<bool>,   
+
+    /// What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. We generally recommend altering this or top_p but not both.
+    #[builder(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f64>,
+
+    /// A list of tools the model may call. Currently, only functions are supported as a tool. Use this to provide a list of functions the model may generate JSON inputs for.
+    #[builder(default)]
+    #[serde(skip_serializing_if = "is_empty_slice")]
+    pub tools: &'a [ToolDefinition],
+}
+
+fn is_empty_slice<T>(t: &&[T]) -> bool {
+    t.is_empty()
+}
 
 #[derive(Debug, Clone, Builder, Serialize)]
 #[builder(setter(into, strip_option))]
@@ -99,6 +127,16 @@ pub enum ChatResponseFormat {
 
 impl ApiRequest for ChatRequest {
     type Response = ChatResponse;
+    fn url(base_url: &str) -> String {
+        format!("{}/chat/completions", base_url)
+    }
+}
+
+impl<'a> ApiRequest for ChatRequestRef<'a> {
+    type Response = ChatResponse;
+    fn url(base_url: &str) -> String {
+        format!("{}/chat/completions", base_url)
+    }
 }
 
 impl ChatRequest {

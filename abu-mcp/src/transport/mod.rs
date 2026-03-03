@@ -1,5 +1,6 @@
 pub mod stdio;
 pub mod tcp;
+pub mod process;
 
 use crate::{McpNotification, McpRequest, McpResponse, McpResult};
 use serde::{Deserialize, Serialize};

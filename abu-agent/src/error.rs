@@ -1,11 +1,22 @@
 use abu_api::{chat::ChatRequestBuilderError, ApiError};
+use abu_mcp::McpError;
+use abu_skill::SkillError;
 
-use crate::tool::ToolError;
+use crate::{memory::MemoryError, tool::ToolError};
 
 #[derive(Debug, thiserror::Error)]
-pub enum CoreError {
+pub enum AgentError {
+    #[error(transparent)]
+    Skill(#[from] SkillError),
+
+    #[error(transparent)]
+    Memory(#[from] MemoryError),
+
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),
+
+    #[error(transparent)]
+    Mcp(#[from] McpError),
     
     #[error(transparent)]
     Tool(#[from] ToolError),
@@ -32,4 +43,4 @@ pub enum CoreError {
     NoChoise,
 }
 
-pub type CoreResult<T> = std::result::Result<T, CoreError>;
+pub type AgentResult<T> = std::result::Result<T, AgentError>;

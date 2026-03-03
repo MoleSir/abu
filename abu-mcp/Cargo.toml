@@ -8,11 +8,9 @@ license = { workspace = true }
 
 
 [dependencies]
-abu-api = { workspace = true }
-
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["io-std"] }
+tokio = { workspace = true, features = ["io-std", "process"] }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 derive_builder = { workspace = true }

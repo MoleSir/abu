@@ -1,5 +1,5 @@
 [package]
-name = "abu-core"
+name = "abu-agent"
 version = { workspace = true }
 edition = { workspace = true }
 description = { workspace = true }
@@ -10,9 +10,19 @@ license = { workspace = true }
 [dependencies]
 abu-api = { workspace = true }
 abu-macros = { workspace = true }
+abu-mcp = { workspace = true }
+abu-skill = { workspace = true }
+
 dotenv = { workspace = true }
 thiserror = { workspace = true }
 async-trait = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["macros"] }
+tracing = { workspace = true }
+meval = { workspace = true }
+
+
+[dev-dependencies]
+tracing-subscriber = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

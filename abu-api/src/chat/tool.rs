@@ -47,10 +47,10 @@ pub struct ToolDefinition {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FunctionInfo {
-    /// A description of what the function does, used by the model to choose when and how to call the function.
-    pub description: String,
     /// The name of the function to be called. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64.
     pub name: String,
+    /// A description of what the function does, used by the model to choose when and how to call the function.
+    pub description: String,
     /// The parameters the functions accepts, described as a JSON Schema object.
     pub parameters: serde_json::Value,
 }

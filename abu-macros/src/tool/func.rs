@@ -18,10 +18,12 @@ pub struct Param {
     pub description: Option<String>,
 }
 
-pub fn parse_params(input_fn: &mut ItemFn) -> Vec<Param> {
+pub fn parse_params(input_fn: &mut ItemFn) -> (Vec<Param>, bool) {
+    let mut is_associated = false;
     let inputs = &mut input_fn.sig.inputs;
 
-    inputs.iter_mut().map(|arg| -> Param {
+    let mut params = vec![];
+    for arg in inputs.iter_mut() {
         if let FnArg::Typed(pat_type) = arg {
             let param_name = if let syn::Pat::Ident(ident) = &*pat_type.pat {
                 &ident.ident
@@ -58,15 +60,17 @@ pub fn parse_params(input_fn: &mut ItemFn) -> Vec<Param> {
             }
             pat_type.attrs = next_attrs;
 
-            Param {
+            params.push(Param {
                 name: param_name.clone(),
                 typ: param_type_enum,
                 description,
-            }  
+            });
         } else {
-            panic!("")
+            is_associated = true;
         }  
-    }).collect()
+    }
+
+    (params, is_associated)
 }
 
 pub fn generate_args_transform_code(params_info: &[Param]) -> Vec<proc_macro2::TokenStream> {
@@ -91,47 +95,35 @@ pub fn generate_args_transform_code(params_info: &[Param]) -> Vec<proc_macro2::T
     args_trans_code
 }
 
-pub fn generate_required_list_code(params_info: &[Param]) -> Vec<proc_macro2::TokenStream> {
-    let mut required_list_code: Vec<proc_macro2::TokenStream> = Vec::new();
-    for (i, param) in params_info.iter().enumerate() {
-        let arg_name = &param.name;
-        let arg_name_str = arg_name.to_string();
-        
-        if i != 0 {
-            required_list_code.push(quote! { , });
-        }
-        required_list_code.push(quote! {
-            #arg_name_str
-        });
-    }
-    required_list_code
-}
-
-pub fn generate_params_properties(params_info: &[Param]) -> proc_macro2::TokenStream {
-    let properties = params_info
-        .iter()
-        .map(generate_param_propertie);
+pub fn generate_parameters(params: &[Param]) -> proc_macro2::TokenStream {
+    let properties = params.iter()
+        .map(generate_parameter);
 
     quote! {
         #(#properties),*
     }
 }
 
-fn generate_param_propertie(param: &Param) -> proc_macro2::TokenStream {
-    // "content": {"type": "string"}
+/// TODO: More suitation
+pub fn generate_parameter(param: &Param) -> proc_macro2::TokenStream {
+    let abu = crate::utils::get_abu_path();
     let name = param.name.to_string();
-    let type_string = param_type_to_string(param.typ);
-    match &param.description {
-        Some(desc) => quote! {
-            #name : { "type": #type_string, "description": #desc }
-        },
-        None => quote! {
-            #name : { "type": #type_string }
-        },
+
+    let mut code = match param.typ {
+        ParamType::Str => quote! { #abu::tool::ToolParameter::string(#name) },
+        ParamType::String => quote! { #abu::tool::ToolParameter::string(#name) },
+        ParamType::I64 => quote! { #abu::tool::ToolParameter::integer(#name) },
+        ParamType::USize => quote! { #abu::tool::ToolParameter::integer(#name) },
+    };
+
+    if let Some(desc) = &param.description {
+        code = quote! { #code.description(#desc) }
     }
+
+    code
 }
 
-pub fn generate_return_code(input_fn: &ItemFn, params_info: &[Param], struct_name: &Ident) -> proc_macro2::TokenStream {
+pub fn generate_return_code(input_fn: &ItemFn, params_info: &[Param], struct_name: &Ident, is_associated: bool) -> proc_macro2::TokenStream {
     let fn_name = &input_fn.sig.ident;
     let async_mark = if input_fn.sig.asyncness.is_none() { quote! { } } else { quote! { .await } };
     let mut args = Vec::new();
@@ -143,7 +135,12 @@ pub fn generate_return_code(input_fn: &ItemFn, params_info: &[Param], struct_nam
         args.push(quote! { #arg_name });                
     }
 
-    let fn_invoke = quote! { #struct_name::#fn_name(#(#args)*)#async_mark };
+    let fn_invoke = if is_associated {
+        quote! { self.#fn_name(#(#args)*)#async_mark }
+    } else { 
+        quote! { #struct_name::#fn_name(#(#args)*)#async_mark }
+    };
+
     match &input_fn.sig.output {
         // 情况 1: 没有任何返回值定义 (fn foo())
         ReturnType::Default => quote! {
@@ -212,11 +209,11 @@ pub fn generate_return_code(input_fn: &ItemFn, params_info: &[Param], struct_nam
     }
 }
 
-fn param_type_to_string(tp: ParamType) -> &'static str {
-    match tp {
-        ParamType::I64 => "i64",
-        ParamType::USize => "i64",
-        ParamType::Str => "string",
-        ParamType::String => "string",
-    }
-}
+// fn param_type_to_string(tp: ParamType) -> &'static str {
+//     match tp {
+//         ParamType::I64 => "i64",
+//         ParamType::USize => "i64",
+//         ParamType::Str => "string",
+//         ParamType::String => "string",
+//     }
+// }
