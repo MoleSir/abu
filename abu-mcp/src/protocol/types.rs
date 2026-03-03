@@ -19,8 +19,8 @@ pub struct McpServerInitializeResult {
 #[serde(rename_all = "camelCase")]
 pub struct McpClientInitializeResult {
     pub protocol_version: String,
-    pub client_info: McpImplementation,
-    pub capabilities: McpClientCapabilities,
+    pub client_info: Option<McpImplementation>,
+    pub capabilities: Option<McpClientCapabilities>,
 }
 
 /// Server capabilities

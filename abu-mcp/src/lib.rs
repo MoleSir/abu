@@ -6,3 +6,6 @@ pub mod server;
 
 pub use error::*;
 pub use protocol::*;
+
+#[cfg(feature = "fastmcp")]
+pub mod fastmcp;

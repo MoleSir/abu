@@ -10,8 +10,21 @@ license = { workspace = true }
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["io-std", "process"] }
+tokio = { workspace = true, features = ["io-std", "process", "sync", "rt", "io-util", "net"] }
 async-trait = { workspace = true }
 thiserror = { workspace = true }
 derive_builder = { workspace = true }
 tracing = { workspace = true }
+anyhow = "1.0"
+abu-macros = { workspace = true, optional = true }
+
+
+[dev-dependencies]
+tracing-subscriber = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+
+[features]
+default = []
+fastmcp = ["abu-macros"]
+

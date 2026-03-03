@@ -89,7 +89,7 @@ impl<T: McpTransport> McpClient<T> {
         Ok(server_capabilities)
     }
 
-    pub async fn tools_list(&mut self) -> McpResult<()> {
+    pub async fn tools_list(&mut self) -> McpResult<&[McpTool]> {
         let response = self
             .request("tools/list", None)
             .await?;
@@ -97,7 +97,7 @@ impl<T: McpTransport> McpClient<T> {
         let tools = response.get("tools").ok_or(McpError::Other("Except tools!".into()))?;
         let tools = serde_json::from_value(tools.clone())?;
         self.server_tools = tools;
-        Ok(())
+        Ok(&self.server_tools)
     }
 
     pub fn has_tool(&self, tool_name: &str) -> bool {
