@@ -1,13 +1,13 @@
 use std::collections::VecDeque; 
 use abu_api::chat::ChatMessage;
-use super::{MemoryStrategy, MemoryResult};
+use super::Memory;
 
-pub struct SliceWindow {
+pub struct SliceWindowMemory {
     history: VecDeque<ChatMessage>, 
     window_size: usize,
 }
 
-impl SliceWindow {
+impl SliceWindowMemory {
     pub fn new(window_size: usize) -> Self {
         Self {
             history: VecDeque::with_capacity(window_size),
@@ -21,8 +21,12 @@ impl SliceWindow {
 }
 
 #[async_trait::async_trait]
-impl MemoryStrategy for SliceWindow {
-    async fn add_message(&mut self, message: ChatMessage) -> MemoryResult<()> {
+impl Memory for SliceWindowMemory {
+    async fn fork(&self) -> anyhow::Result<Box<dyn Memory>> {
+        Ok(Box::new(Self::new(self.window_size)))
+    }
+
+    async fn add_message(&mut self, message: ChatMessage) -> anyhow::Result<()> {
         if self.history.len() >= self.window_size {
             self.history.pop_front();
         }
@@ -30,11 +34,11 @@ impl MemoryStrategy for SliceWindow {
         Ok(())
     }
 
-    async fn compact_messages(&mut self, _query: &str) -> MemoryResult<Vec<ChatMessage>> {
+    async fn compact_messages(&mut self, _query: &str) -> anyhow::Result<Vec<ChatMessage>> {
         Ok(self.history.iter().cloned().collect::<Vec<_>>())
     }
 
-    async fn clear(&mut self) -> MemoryResult<()> {
+    async fn clear(&mut self) -> anyhow::Result<()> {
         self.history.clear();
         Ok(())
     }

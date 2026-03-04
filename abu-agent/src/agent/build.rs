@@ -1,16 +1,18 @@
-use std::path::PathBuf;
-use crate::{llm::LLM, memory::{Memory, MemoryStrategy, Sequential}, tool::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWritor}, terminate::Terminator, Tool}, AgentResult};
-use super::{Agent, AgentConfig, AgentKit};
+use std::{path::PathBuf, sync::Arc};
+use tokio::sync::RwLock;
+use crate::{llm::LLM, memory::{Memory, SequentialMemory}, tool::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWritor}, terminate::Terminator, Tool}, AgentResult};
+use super::{history::History, Agent, AgentConfig, AgentKit};
 
-const DEFAULT_SYSTEM_PROMPT: &str = "";
+const DEFAULT_SYSTEM_PROMPT: &str = "You are an agent.";
 
 pub struct AgentBuilder {
     pub llm: LLMBuilder,
     pub config: AgentConfig,
-    pub memory_strategy: Box<dyn MemoryStrategy>,
+    pub memory: Box<dyn Memory>,
     pub system_prompt: String,
     pub with_skills: Option<PathBuf>,
     pub with_builin_tools: bool,
+    pub with_subagent: bool,
     pub tools: Vec<Box<dyn Tool>>,
     pub mcpservers: Vec<(String, Vec<String>)>,
 }
@@ -32,7 +34,7 @@ pub enum LLMBuilder {
 impl AgentBuilder {
     pub async fn build(self) -> AgentResult<Agent> {
         let llm = self.llm.build()?;
-        let mut system_prompt = format!("{} Once you consider the work complete or do task to do, call the terminate method.",self.system_prompt);
+        let mut system_prompt = format!("{}\nOnce you consider the work complete or do task to do, call the terminate method.", self.system_prompt);
         let mut kit = AgentKit::new();
         kit.add_tool(Terminator::new());
 
@@ -57,13 +59,13 @@ impl AgentBuilder {
             system_prompt = kit.attach_system_prompt(&system_prompt);   
         }
 
-        let memory = Memory::new(self.memory_strategy, &system_prompt);
+        let history = History::new(self.memory, &system_prompt);
 
         Ok(Agent {
             config: self.config,
-            llm,
-            memory,
-            kit
+            llm: Arc::new(llm),
+            history,
+            kit: Arc::new(RwLock::new(kit)),
         })
 
     }
@@ -83,10 +85,11 @@ impl Default for AgentBuilder {
         Self {
             llm: LLMBuilder::FromEnv,
             config: AgentConfig::default(),
-            memory_strategy: Box::new(Sequential::new()),
+            memory: Box::new(SequentialMemory::new()),
             system_prompt: DEFAULT_SYSTEM_PROMPT.to_string(),
             with_skills: None,
             with_builin_tools: true,
+            with_subagent: false,
             tools: vec![],
             mcpservers: vec![],
         }
@@ -115,8 +118,8 @@ impl AgentBuilder {
         self
     }
 
-    pub fn memory_strategy(mut self, memory_strategy: Box<dyn MemoryStrategy>) -> Self {
-        self.memory_strategy = memory_strategy;
+    pub fn memory(mut self, memory: Box<dyn Memory>) -> Self {
+        self.memory = memory;
         self
     }
 

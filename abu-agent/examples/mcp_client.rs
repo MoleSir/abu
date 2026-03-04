@@ -24,7 +24,7 @@ async fn result_main() -> Result<(), Box<dyn std::error::Error>> {
         .build()
         .await?;
 
-    debug!("{:#?}", agent.tool_list());
+    debug!("{:#?}", agent.tool_list().await);
     
     agent.run("帮我查询上海的天气").await?;
     // agent.run("我的名字是？").await?;

@@ -2,7 +2,7 @@ use abu_api::{chat::ChatRequestBuilderError, ApiError};
 use abu_mcp::McpError;
 use abu_skill::SkillError;
 
-use crate::{memory::MemoryError, tool::ToolError};
+use crate::tool::ToolError;
 
 // #[derive(Debug, thiserror::Error)]
 #[thiserrorctx::context_error]
@@ -11,7 +11,7 @@ pub enum AgentError {
     Skill(#[from] SkillError),
 
     #[error(transparent)]
-    Memory(#[from] MemoryError),
+    Memory(anyhow::Error),
 
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),

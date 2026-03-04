@@ -24,7 +24,7 @@ async fn result_main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     info!("{}", agent.system_prompt());
-    debug!("{:#?}", agent.tool_list());
+    debug!("{:#?}", agent.tool_list().await);
     
     // agent.run("What skills are available? just tell me all skill's name").await?;
     agent.run("tell me the result of 1 + 1").await?;

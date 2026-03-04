@@ -1,10 +1,12 @@
+use std::fmt::Display;
+
 use crate::{ApiError, ApiResult};
 
 use super::tool::*;
 use serde::{Deserialize, Serialize};
-use strum::{Display, EnumMessage, EnumVariantNames};
+use strum::{EnumMessage, EnumVariantNames};
 
-#[derive(Debug, Clone, Serialize, Display, EnumVariantNames, EnumMessage)]
+#[derive(Debug, Clone, Serialize, EnumVariantNames, EnumMessage)]
 #[serde(rename_all = "snake_case", tag = "role")]
 pub enum ChatMessage {
     /// A message from a system.
@@ -80,6 +82,31 @@ pub struct ToolMessage {
     pub tool_call_id: String,
 }
 
+impl Display for SystemMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "system: {}", self.content)
+    }
+}
+
+impl Display for UserMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "user: {}", self.content)
+    }
+}
+
+impl Display for AssistantMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "assistant: {}", self.content)
+    }
+}
+
+impl Display for ToolMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "tool: {}", self.content)
+    }
+}
+
+
 impl ChatMessage {
     pub fn system(content: impl Into<String>) -> Self {
         Self::System(SystemMessage {
@@ -108,6 +135,22 @@ impl ChatMessage {
             content: content.into(),
             tool_call_id: tool_call_id.into()
         })
+    }
+
+    pub fn is_system(&self) -> bool {
+        matches!(self, Self::System(_))
+    }
+
+    pub fn is_user(&self) -> bool {
+        matches!(self, Self::User(_))
+    }
+
+    pub fn is_assistant(&self) -> bool {
+        matches!(self, Self::Assistant(_))
+    }
+
+    pub fn is_tool(&self) -> bool {
+        matches!(self, Self::Tool(_))
     }
 
     pub fn as_system(&self) -> ApiResult<&SystemMessage> {
@@ -139,6 +182,17 @@ impl ChatMessage {
             Ok(msg)
         } else {
             Err(ApiError::ExceptMessage("tool"))
+        }
+    }
+}
+
+impl Display for ChatMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::System(m) => m.fmt(f),
+            Self::User(m) => m.fmt(f),
+            Self::Assistant(m) => m.fmt(f),
+            Self::Tool(m) => m.fmt(f),
         }
     }
 }
