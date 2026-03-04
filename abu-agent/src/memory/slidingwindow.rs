@@ -30,8 +30,8 @@ impl MemoryStrategy for SliceWindow {
         Ok(())
     }
 
-    async fn compact_messages(&mut self, _query: &str) -> MemoryResult<Vec<&ChatMessage>> {
-        Ok(self.history.iter().collect::<Vec<_>>())
+    async fn compact_messages(&mut self, _query: &str) -> MemoryResult<Vec<ChatMessage>> {
+        Ok(self.history.iter().cloned().collect::<Vec<_>>())
     }
 
     async fn clear(&mut self) -> MemoryResult<()> {

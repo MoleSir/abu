@@ -2,6 +2,7 @@ use std::{collections::HashMap, path::{Path, PathBuf}, sync::OnceLock};
 use crate::{Skill, SkillError, SkillFrontmatter, SkillResult};
 use regex::Regex;
 use walkdir::{WalkDir, DirEntry};
+use tracing::debug;
 
 pub struct SkillLoader {
     pub dir: PathBuf,
@@ -10,7 +11,8 @@ pub struct SkillLoader {
 
 impl SkillLoader {
     pub fn load(skill_dir: impl Into<PathBuf>) -> SkillResult<Self> {
-        let skill_dir = skill_dir.into();
+        let skill_dir: PathBuf = skill_dir.into();
+        debug!("load skills from {}", skill_dir.display());
         let skills = Self::load_skills(&skill_dir)?;
         Ok(Self { dir: skill_dir, skills })
     }
@@ -19,12 +21,14 @@ impl SkillLoader {
         if self.skills.is_empty() {
             "(no skills available)".to_string()
         } else {
-            self.skills.iter()
+            let skill_descriptions = self.skills.iter()
                 .map(|(name, skill)| {
                     format!("  - {}: {}", name, skill.frontmatter.description)
                 })
                 .collect::<Vec<_>>()
-                .join("\n")
+                .join("\n");
+            
+            format!("Use load_skill to access full content of one skill.\nHere are all available skills for you:\n{}", skill_descriptions)
         }
     }
 
@@ -40,6 +44,7 @@ impl SkillLoader {
             .filter_map(Result::ok)
             .filter_map(Self::check_skill_path)
             .map(|(name, path)| {
+                debug!("load skill {} from {}", name, path.display());
                 Self::load_skill(&path).map(|skill| (name, skill))
             })
             .collect()

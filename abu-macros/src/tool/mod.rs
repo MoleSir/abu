@@ -62,7 +62,7 @@ pub fn tool_impl(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
                 vec![ #parameters ]
             }
 
-            async fn execute(&self, args: serde_json::Value) -> std::result::Result<String, #abu::tool::ToolError> {
+            async fn execute(&self, args: serde_json::Value) -> std::result::Result<#abu::tool::ToolCallResult, #abu::tool::ToolError> {
                 #(#args_trans_code)*
                 #return_code
             }

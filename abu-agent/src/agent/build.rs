@@ -8,8 +8,8 @@ pub struct AgentBuilder {
     pub llm: LLMBuilder,
     pub config: AgentConfig,
     pub memory_strategy: Box<dyn MemoryStrategy>,
-    pub system_prompt: Option<String>,
-    pub with_skill: Option<PathBuf>,
+    pub system_prompt: String,
+    pub with_skills: Option<PathBuf>,
     pub with_builin_tools: bool,
     pub tools: Vec<Box<dyn Tool>>,
     pub mcpservers: Vec<(String, Vec<String>)>,
@@ -32,8 +32,7 @@ pub enum LLMBuilder {
 impl AgentBuilder {
     pub async fn build(self) -> AgentResult<Agent> {
         let llm = self.llm.build()?;
-        
-        let memory = Memory::new(self.memory_strategy, &self.system_prompt.unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.to_string()));
+        let mut system_prompt = format!("{} Once you consider the work complete or do task to do, call the terminate method.",self.system_prompt);
         let mut kit = AgentKit::new();
         kit.add_tool(Terminator::new());
 
@@ -53,9 +52,12 @@ impl AgentBuilder {
             kit.add_mcp_server(&cmd, &args).await?;
         }
 
-        if let Some(skill_path) = self.with_skill {
+        if let Some(skill_path) = self.with_skills {
             kit.load_skill(skill_path)?;
+            system_prompt = kit.attach_system_prompt(&system_prompt);   
         }
+
+        let memory = Memory::new(self.memory_strategy, &system_prompt);
 
         Ok(Agent {
             config: self.config,
@@ -82,8 +84,8 @@ impl Default for AgentBuilder {
             llm: LLMBuilder::FromEnv,
             config: AgentConfig::default(),
             memory_strategy: Box::new(Sequential::new()),
-            system_prompt: None,
-            with_skill: None,
+            system_prompt: DEFAULT_SYSTEM_PROMPT.to_string(),
+            with_skills: None,
             with_builin_tools: true,
             tools: vec![],
             mcpservers: vec![],
@@ -119,12 +121,12 @@ impl AgentBuilder {
     }
 
     pub fn system_prompt(mut self, system_prompt: impl Into<String>) -> Self {
-        self.system_prompt = Some(system_prompt.into());
+        self.system_prompt = system_prompt.into();
         self
     }
 
-    pub fn with_skill(mut self, skill_path: impl Into<PathBuf>) -> Self {
-        self.with_skill = Some(skill_path.into());
+    pub fn with_skills(mut self, skill_path: impl Into<PathBuf>) -> Self {
+        self.with_skills = Some(skill_path.into());
         self
     }
 

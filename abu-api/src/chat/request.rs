@@ -11,7 +11,7 @@ use strum::{Display, EnumString, EnumVariantNames};
 pub struct ChatRequestRef<'a> {
     /// A list of messages comprising the conversation so far.
     #[builder(default)]
-    pub messages: Vec<&'a ChatMessage>,
+    pub messages: &'a [ChatMessage],
 
     /// ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.
     pub model: String,

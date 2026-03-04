@@ -124,6 +124,7 @@ pub fn generate_parameter(param: &Param) -> proc_macro2::TokenStream {
 }
 
 pub fn generate_return_code(input_fn: &ItemFn, params_info: &[Param], struct_name: &Ident, is_associated: bool) -> proc_macro2::TokenStream {
+    let abu = crate::utils::get_abu_path();
     let fn_name = &input_fn.sig.ident;
     let async_mark = if input_fn.sig.asyncness.is_none() { quote! { } } else { quote! { .await } };
     let mut args = Vec::new();
@@ -154,7 +155,7 @@ pub fn generate_return_code(input_fn: &ItemFn, params_info: &[Param], struct_nam
             if is_explicit_unit {
                 quote! {
                     #fn_invoke;
-                    Ok(format!("no output"))
+                    Ok(#abu::tool::ToolCallResult::success("no output"))
                 }
             } else {
                 // 情况 3: 有具体返回类型 (Result 或 其他类型)
@@ -170,8 +171,8 @@ pub fn generate_return_code(input_fn: &ItemFn, params_info: &[Param], struct_nam
                                         quote! {
                                             let result = #fn_invoke;
                                             match result {
-                                                Ok(()) => Ok(format!("Execute success!")),
-                                                Err(err) => Ok(format!("Execute failed for {}", err)),
+                                                Ok(()) => Ok(#abu::tool::ToolCallResult::success("no output")),
+                                                Err(err) => Ok(#abu::tool::ToolCallResult::error(err.to_string())),
                                             }
                                         }
                                     } else {
@@ -179,27 +180,27 @@ pub fn generate_return_code(input_fn: &ItemFn, params_info: &[Param], struct_nam
                                         quote! {
                                             let result = #fn_invoke;
                                             match result {
-                                                Ok(value) => Ok(format!("Execute success and return {}", value)),
-                                                Err(err) => Ok(format!("Execute failed for {}", err)),
+                                                Ok(value) => Ok(#abu::tool::ToolCallResult::success(format!("{}", value))),
+                                                Err(err) => Ok(#abu::tool::ToolCallResult::error(err.to_string())),
                                             }
                                         }
                                     }
                                 } else {
                                     // 无法解析泛型参数，回退到普通处理
-                                    quote! { Ok(format!("{}", #fn_invoke)) } 
+                                    quote! { Ok(#abu::tool::ToolCallResult::success(format!("{}", #fn_invoke))) } 
                                 }
                             } else {
                                 // Result 但没有泛型参数?
-                                 quote! { Ok(format!("{}", #fn_invoke)) }
+                                quote! { Ok(#abu::tool::ToolCallResult::success(format!("{}", #fn_invoke))) }
                             }
                         } else {
                             // 普通返回值 (如 String, i32 等)
                             quote! {
-                                Ok(format!("{}", #fn_invoke))
+                                Ok(#abu::tool::ToolCallResult::success(format!("{}", #fn_invoke)))
                             }
                         }
                     } else {
-                         panic!("No path segment found!")
+                        panic!("No path segment found!")
                     }
                 } else {
                     unimplemented!("No support for non-path return types")

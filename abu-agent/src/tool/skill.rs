@@ -13,7 +13,7 @@ impl SkillTool {
 
 #[abu_macros::tool(
     struct_name = SkillTool,
-    description = "Load specialized knowledge by name.",
+    description = "Load specialized skill by name.",
     name = "load_skill",
 )]
 pub fn load(&self, name: &str) -> String {

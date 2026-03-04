@@ -44,19 +44,19 @@ impl Into<ChatMessage> for ToolMessage {
 #[derive(Debug, Clone, Serialize)]
 pub struct SystemMessage {
     /// The contents of the system message.
-    content: String,
+    pub content: String,
     /// An optional name for the participant. Provides the model information to differentiate between participants of the same role.
     #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct UserMessage {
     /// The contents of the user message.
-    content: String,
+    pub content: String,
     /// An optional name for the participant. Provides the model information to differentiate between participants of the same role.
     #[serde(skip_serializing_if = "Option::is_none")]
-    name: Option<String>,
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,9 +75,9 @@ pub struct AssistantMessage {
 #[derive(Debug, Clone, Serialize)]
 pub struct ToolMessage {
     /// The contents of the tool message.
-    content: String,
+    pub content: String,
     /// Tool call that this message is responding to.
-    tool_call_id: String,
+    pub tool_call_id: String,
 }
 
 impl ChatMessage {

@@ -4,7 +4,8 @@ use abu_skill::SkillError;
 
 use crate::{memory::MemoryError, tool::ToolError};
 
-#[derive(Debug, thiserror::Error)]
+// #[derive(Debug, thiserror::Error)]
+#[thiserrorctx::context_error]
 pub enum AgentError {
     #[error(transparent)]
     Skill(#[from] SkillError),
@@ -42,5 +43,3 @@ pub enum AgentError {
     #[error("no choise in response")]
     NoChoise,
 }
-
-pub type AgentResult<T> = std::result::Result<T, AgentError>;

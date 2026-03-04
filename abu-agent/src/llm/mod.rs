@@ -1,4 +1,5 @@
 use abu_api::{chat::{AssistantMessage, ChatMessage, ChatRequestRef, ChatRequestRefBuilder, ChatResponse, ToolDefinition}, ApiRequest, Credentials};
+use thiserrorctx::Context;
 use crate::{AgentError, AgentResult};
 
 #[derive(Clone)]
@@ -24,13 +25,13 @@ impl LLM {
         Ok(Self { credentials: Credentials::new(base_url, api_key), model })
     }
 
-    pub async fn chat(&self, messages: Vec<&ChatMessage>, tools: &[ToolDefinition], temperature: f64) -> AgentResult<AssistantMessage> {
-        let request = self.build_message(messages, tools, temperature)?;
-        let response = request.send(&self.credentials).await?;
+    pub async fn chat(&self, messages: &[ChatMessage], tools: &[ToolDefinition], temperature: f64) -> AgentResult<AssistantMessage> {
+        let request = self.build_message(messages, tools, temperature).context("build request")?;
+        let response = request.send(&self.credentials).await.context("send request")?;
         Self::collect_message(response)
     }
 
-    fn build_message<'a>(&'a self, messages: Vec<&'a ChatMessage>, tools: &'a [ToolDefinition], temperature: f64) -> AgentResult<ChatRequestRef<'a>> {
+    fn build_message<'a>(&'a self, messages: &'a [ChatMessage], tools: &'a [ToolDefinition], temperature: f64) -> AgentResult<ChatRequestRef<'a>> {
         let request = ChatRequestRefBuilder::default()
             .model(&self.model)
             .messages(messages)
@@ -41,11 +42,11 @@ impl LLM {
     }
 
     fn collect_message(response: ChatResponse) -> AgentResult<AssistantMessage> {
-        response
+        Ok(response
             .choices
             .into_iter()
             .next()
             .ok_or(AgentError::NoChoise)
-            .map(|c| c.message)
+            .map(|c| c.message)?)
     }
 }

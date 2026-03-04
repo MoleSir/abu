@@ -15,7 +15,7 @@ pub trait Tool: Send + Sync {
     fn name(&self) -> &'static str;
     fn description(&self) -> &'static str;
     fn parameters(&self) -> Vec<ToolParameter>;
-    async fn execute(&self, args: Value) -> ToolResult<String>;
+    async fn execute(&self, args: Value) -> ToolResult<ToolCallResult>;
 
     fn to_function_define(&self) -> ToolDefinition {
         let schema = parameters_schema(&self.parameters());
@@ -219,7 +219,7 @@ impl ToolCollection {
         self.tools.insert(name, tool);
     }
 
-    pub async fn execute_tool(&self, name: &str, arguments: serde_json::Value) -> ToolResult<String> {
+    pub async fn execute_tool(&self, name: &str, arguments: serde_json::Value) -> ToolResult<ToolCallResult> {
         let tool = self.get_tool(name).ok_or_else(|| ToolError::ToolNotFound(name.to_string()))?;
         let value = tool.execute(arguments).await?;
         Ok(value)
@@ -229,7 +229,8 @@ impl ToolCollection {
         self.tools.contains_key(tool_name)
     }
 
-    pub async fn execute_toolcall(&self, tool_call: &ToolCall) -> ToolResult<String> {
+    /// Return tool execute error if tool inner error
+    pub async fn execute_toolcall(&self, tool_call: &ToolCall) -> ToolResult<ToolCallResult> {
         let functioncall = &tool_call.function;
         let arguments: serde_json::Value = serde_json::from_str(&functioncall.arguments)?;
         self.execute_tool(&functioncall.name, arguments).await
@@ -243,6 +244,22 @@ impl ToolCollection {
         for tool in tools {
             self.add_tool_box(tool);
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ToolCallResult {
+    pub is_error: bool,
+    pub context: String,
+}
+
+impl ToolCallResult {
+    pub fn error(context: impl Into<String>) -> Self {
+        Self { is_error: true, context: context.into() }
+    }
+
+    pub fn success(context: impl Into<String>) -> Self {
+        Self { is_error: false, context: context.into() }
     }
 }
 

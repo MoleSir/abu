@@ -4,7 +4,7 @@ use abu_api::chat::{FunctionInfo, ToolCall, ToolDefinition, ToolType};
 use abu_mcp::{client::McpClient, transport::process::McpProcessTransport, McpError, McpTool, McpToolCall, McpToolCallResult, McpToolCallResultContent};
 use abu_skill::SkillLoader;
 use tracing::debug;
-use crate::{tool::{skill::SkillTool, Tool, ToolCollection}, AgentResult};
+use crate::{tool::{skill::SkillTool, Tool, ToolCallResult, ToolCollection}, AgentResult};
 
 pub struct AgentKit {
     tools: ToolCollection,
@@ -78,13 +78,15 @@ impl AgentKit {
 
     pub async fn execute_tool(&mut self, tool_call: &ToolCall) -> AgentResult<String> {
         if self.tools.has_tool(&tool_call.function.name) {
-            Ok(self.tools.execute_toolcall(tool_call).await?)
+            let result = self.tools.execute_toolcall(tool_call).await?;
+            Ok(tool_call_result_string(&result))
         } else {
             for client in self.stdio_mcps.iter_mut() {
                 if client.has_tool(&tool_call.function.name) {
                     let mcp_tool_call = tool_call_to_mcp_tool_call(tool_call)?;
-                    let res = client.tools_call(mcp_tool_call).await?;
-                    return Ok(mcp_tool_call_result_to_string(res))
+                    let mcp_tool_call_result = client.tools_call(mcp_tool_call).await?;
+                    let tool_call_result = mcp_tool_call_result.into();
+                    return Ok(tool_call_result_string(&tool_call_result))
                 }
             }
 
@@ -114,27 +116,34 @@ fn mcp_tool_to_tool_defintion(mcp_tool: &McpTool) -> ToolDefinition {
     }
 }
 
-fn mcp_tool_call_result_to_string(mcp_tool_call: McpToolCallResult) -> String {
-    let context =     mcp_tool_call
-        .content
-        .iter()
-        .map(|content| {
-            match content {
-                McpToolCallResultContent::Text { text } => text.as_str(),
-            }
-        })
-        .collect::<Vec<&str>>()
-        .join("\n");
-    if let Some(true) = mcp_tool_call.is_error {
-        format!("execute tool failed for: {}", context)
-    } else {
-        context
-    }
-}
-
 fn tool_call_to_mcp_tool_call(tool_call: &ToolCall) -> serde_json::Result<McpToolCall> {
     Ok(McpToolCall {
         name: tool_call.function.name.clone(),
         arguments: Some(serde_json::from_str(&tool_call.function.arguments)?),
     })
 }
+
+fn tool_call_result_string(result: &ToolCallResult) -> String {
+    if result.is_error {
+        format!("tool execeute failed: {}", result.context)
+    } else {
+        format!("tool execeute success: {}", result.context)
+    }
+}
+
+impl Into<ToolCallResult> for McpToolCallResult {
+    fn into(self) -> ToolCallResult {
+        let is_error = self.is_error.unwrap_or(false);
+        let context = self
+            .content
+            .iter()
+            .map(|content| {
+                match content {
+                    McpToolCallResultContent::Text { text } => text.as_str(),
+                }
+            })
+            .collect::<Vec<&str>>()
+            .join("\n");
+        ToolCallResult { is_error, context }
+    }
+} 

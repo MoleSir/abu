@@ -18,8 +18,8 @@ impl MemoryStrategy for Sequential {
         Ok(())
     }
 
-    async fn compact_messages(&mut self, _query: &str) -> MemoryResult<Vec<&ChatMessage>> {
-        Ok(self.history.iter().collect())
+    async fn compact_messages(&mut self, _query: &str) -> MemoryResult<Vec<ChatMessage>> {
+        Ok(self.history.iter().cloned().collect())
     }
 
     async fn clear(&mut self) -> MemoryResult<()> {

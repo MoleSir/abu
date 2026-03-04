@@ -51,6 +51,9 @@ impl Credentials {
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
     #[error(transparent)]
+    SerdeJson(#[from] serde_json::Error),
+
+    #[error(transparent)]
     EnvVar(#[from] std::env::VarError),
 
     #[error(transparent)]
