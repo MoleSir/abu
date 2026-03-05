@@ -49,7 +49,7 @@ pub fn tool_impl(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
         }
 
         #[async_trait::async_trait]
-        impl #abu::tool::Tool for #struct_name {
+        impl #abu::Tool for #struct_name {
             fn name(&self) -> &'static str {
                 #name
             }
@@ -58,11 +58,11 @@ pub fn tool_impl(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
                 #description
             }
 
-            fn parameters(&self) -> Vec<#abu::tool::ToolParameter> {
+            fn parameters(&self) -> Vec<#abu::ToolParameter> {
                 vec![ #parameters ]
             }
 
-            async fn execute(&self, args: serde_json::Value) -> std::result::Result<#abu::tool::ToolCallResult, #abu::tool::ToolError> {
+            async fn execute(&self, args: serde_json::Value) -> std::result::Result<#abu::ToolCallResult, #abu::ToolError> {
                 #(#args_trans_code)*
                 #return_code
             }

@@ -1,25 +1,12 @@
 pub mod prelude;
 use std::collections::HashMap;
 use crate::transport::McpTransport;
-use crate::McpResource;
+use crate::{McpResource, McpToolInputSchema};
 use crate::{protocol::McpTool, McpClientInitializeResult, McpError, McpImplementation, McpPromptsCapability, McpResourceCapability, McpResult, McpServerCapabilities, McpServerInitializeResult, McpToolCallResult, McpToolCallResultContent, McpToolsCapability};
 use crate::server::{McpServer, McpServerHandler};
+use abu_tool::{Tool, ToolParameter};
 use async_trait::async_trait;
 use tracing::debug;
-
-#[async_trait]
-pub trait Tool: Send + Sync {
-    fn name(&self) -> String;
-    fn to_mcptool(&self) -> McpTool;
-    async fn execute(&self, args: serde_json::Value) -> anyhow::Result<Option<String>>;
-}
-
-pub trait Resource: Send + Sync {
-    fn name(&self) -> String;
-    fn uri(&self) -> String;
-    fn description(&self) -> String;
-    fn mime_type(&self) -> String;
-}
 
 pub enum Transport {
     Stdio,
@@ -70,7 +57,7 @@ impl McpServerHandler for FastMcpHandler {
     }
 
     async fn tools_list(&self) -> McpResult<Vec<McpTool>> {
-        Ok(self.tools.iter().map(|(_, tool)| tool.to_mcptool()).collect())
+        Ok(self.tools.iter().map(|(_, tool)| tool_to_mcptool(tool)).collect())
     }
 
     async fn resources_list(&self) -> McpResult<Vec<McpResource>> {
@@ -94,13 +81,9 @@ impl McpServerHandler for FastMcpHandler {
                 let arguments = arguments.unwrap_or(serde_json::json!({}));
                 match tool.execute(arguments).await {
                     Ok(result) => {
-                        let content = match result {
-                            Some(ret_value) => vec![ McpToolCallResultContent::Text { text: ret_value } ],
-                            None => vec! []
-                        };
                         Ok(McpToolCallResult{
-                            content,
-                            is_error: Some(false)
+                            content: vec![ McpToolCallResultContent::Text { text: result.context } ],
+                            is_error: Some(result.is_error),
                         })
                     }
                     Err(err) => Err(McpError::Other(err.to_string()))
@@ -121,7 +104,7 @@ impl<T: McpTransport> FastMcp<T> {
     pub fn new(transport: T, tools: Vec<Box<dyn Tool>>) -> Self {
         let mut fast_handler = FastMcpHandler::new();
         for tool in tools {
-            fast_handler.tools.insert(tool.name(), tool);
+            fast_handler.tools.insert(tool.name().to_string(), tool);
         }
 
         Self {
@@ -140,4 +123,19 @@ impl<T: McpTransport> FastMcp<T> {
     }
 }
 
-
+fn tool_to_mcptool(tool: &Box<dyn Tool>) -> McpTool {
+    fn mcptool_input_schema(params: &[ToolParameter]) -> McpToolInputSchema {
+        let info = ToolParameter::extract_info(params);
+        McpToolInputSchema {
+            r#type: "object".to_string(),
+            properties: Some(serde_json::json!(info.properties)),
+            required: Some(serde_json::json!(info.required)),
+        }
+    }
+    let schema = mcptool_input_schema(&tool.parameters());
+    McpTool {
+        name: tool.name().to_string(),
+        description: Some(tool.description().to_string()),
+        input_schema: schema,
+    }
+}

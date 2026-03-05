@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "abu-api", 
+    "abu-tool", 
     "abu-mcp", 
     "abu-skill", 
     "abu-agent", 
@@ -20,6 +21,7 @@ license = "MIT"
 
 [workspace.dependencies]
 abu-api = { path = "./abu-api", package = "abu-api", version = "0.1.0" }
+abu-tool = { path = "./abu-tool", package = "abu-tool", version = "0.1.0" }
 abu-mcp = { path = "./abu-mcp", package = "abu-mcp", version = "0.1.0" }
 abu-skill = { path = "./abu-skill", package = "abu-skill", version = "0.1.0" }
 abu-agent = { path = "./abu-agent", package = "abu-agent", version = "0.1.0" }

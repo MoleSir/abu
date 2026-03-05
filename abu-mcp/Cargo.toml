@@ -15,8 +15,10 @@ async-trait = { workspace = true }
 thiserror = { workspace = true }
 derive_builder = { workspace = true }
 tracing = { workspace = true }
-anyhow = "1.0"
+anyhow = { workspace = true }
+
 abu-macros = { workspace = true, optional = true }
+abu-tool = { workspace = true, optional = true }
 
 
 [dev-dependencies]
@@ -26,5 +28,5 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [features]
 default = []
-fastmcp = ["abu-macros"]
+fastmcp = ["abu-macros", "abu-tool"]
 

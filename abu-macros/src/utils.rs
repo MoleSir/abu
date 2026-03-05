@@ -2,7 +2,7 @@ use proc_macro_crate::{crate_name, FoundCrate};
 use quote::quote;
 
 pub fn get_abu_path() -> proc_macro2::TokenStream {
-    match crate_name("abu-agent") {
+    match crate_name("abu-tool") {
         Ok(FoundCrate::Itself) => {
             quote! { crate }
         }
@@ -11,7 +11,7 @@ pub fn get_abu_path() -> proc_macro2::TokenStream {
             quote! { #ident }
         }
         Err(_) => {
-            quote! { abu_agent }
+            quote! { abu_tool }
         }
     }
 }

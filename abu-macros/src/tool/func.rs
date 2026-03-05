@@ -80,15 +80,15 @@ pub fn generate_args_transform_code(params_info: &[Param]) -> Vec<proc_macro2::T
         let arg_name = &param.name;
         let arg_name_str = arg_name.to_string();
         let trans_code = match param.typ {
-            ParamType::I64 => quote! { as_i64().ok_or_else(|| #abu::tool::ToolError::ArgParse("i64"))? },
-            ParamType::USize => quote ! { as_i64().ok_or_else(|| #abu::tool::ToolError::ArgParse("i64"))? },
-            ParamType::Str => quote! { as_str().ok_or_else(|| #abu::tool::ToolError::ArgParse("string"))? },
-            ParamType::String => quote! { as_str().ok_or_else(|| #abu::tool::ToolError::ArgParse("string"))? },
+            ParamType::I64 => quote! { as_i64().ok_or_else(|| #abu::ToolError::ArgParse("i64"))? },
+            ParamType::USize => quote ! { as_i64().ok_or_else(|| #abu::ToolError::ArgParse("i64"))? },
+            ParamType::Str => quote! { as_str().ok_or_else(|| #abu::ToolError::ArgParse("string"))? },
+            ParamType::String => quote! { as_str().ok_or_else(|| #abu::ToolError::ArgParse("string"))? },
         };
         args_trans_code.push(quote! {
             let #arg_name = args
                 .get(#arg_name_str)
-                .ok_or_else(|| #abu::tool::ToolError::ArgNotFound(#arg_name_str.to_string()))?
+                .ok_or_else(|| #abu::ToolError::ArgNotFound(#arg_name_str.to_string()))?
                 .#trans_code;
         });
     }
@@ -110,10 +110,10 @@ pub fn generate_parameter(param: &Param) -> proc_macro2::TokenStream {
     let name = param.name.to_string();
 
     let mut code = match param.typ {
-        ParamType::Str => quote! { #abu::tool::ToolParameter::string(#name) },
-        ParamType::String => quote! { #abu::tool::ToolParameter::string(#name) },
-        ParamType::I64 => quote! { #abu::tool::ToolParameter::integer(#name) },
-        ParamType::USize => quote! { #abu::tool::ToolParameter::integer(#name) },
+        ParamType::Str => quote! { #abu::ToolParameter::string(#name) },
+        ParamType::String => quote! { #abu::ToolParameter::string(#name) },
+        ParamType::I64 => quote! { #abu::ToolParameter::integer(#name) },
+        ParamType::USize => quote! { #abu::ToolParameter::integer(#name) },
     };
 
     if let Some(desc) = &param.description {
@@ -146,7 +146,7 @@ pub fn generate_return_code(input_fn: &ItemFn, params_info: &[Param], struct_nam
         // 情况 1: 没有任何返回值定义 (fn foo())
         ReturnType::Default => quote! {
             #fn_invoke;
-            Ok(format!("no output"))
+            Ok(#abu::ToolCallResult::success("no output"))
         },
         ReturnType::Type(_, ty) => {
             // 情况 2: 显式定义返回 () (fn foo() -> ())
@@ -155,7 +155,7 @@ pub fn generate_return_code(input_fn: &ItemFn, params_info: &[Param], struct_nam
             if is_explicit_unit {
                 quote! {
                     #fn_invoke;
-                    Ok(#abu::tool::ToolCallResult::success("no output"))
+                    Ok(#abu::ToolCallResult::success("no output"))
                 }
             } else {
                 // 情况 3: 有具体返回类型 (Result 或 其他类型)
@@ -171,8 +171,8 @@ pub fn generate_return_code(input_fn: &ItemFn, params_info: &[Param], struct_nam
                                         quote! {
                                             let result = #fn_invoke;
                                             match result {
-                                                Ok(()) => Ok(#abu::tool::ToolCallResult::success("no output")),
-                                                Err(err) => Ok(#abu::tool::ToolCallResult::error(err.to_string())),
+                                                Ok(()) => Ok(#abu::ToolCallResult::success("no output")),
+                                                Err(err) => Ok(#abu::ToolCallResult::error(err.to_string())),
                                             }
                                         }
                                     } else {
@@ -180,23 +180,23 @@ pub fn generate_return_code(input_fn: &ItemFn, params_info: &[Param], struct_nam
                                         quote! {
                                             let result = #fn_invoke;
                                             match result {
-                                                Ok(value) => Ok(#abu::tool::ToolCallResult::success(format!("{}", value))),
-                                                Err(err) => Ok(#abu::tool::ToolCallResult::error(err.to_string())),
+                                                Ok(value) => Ok(#abu::ToolCallResult::success(format!("{}", value))),
+                                                Err(err) => Ok(#abu::ToolCallResult::error(err.to_string())),
                                             }
                                         }
                                     }
                                 } else {
                                     // 无法解析泛型参数，回退到普通处理
-                                    quote! { Ok(#abu::tool::ToolCallResult::success(format!("{}", #fn_invoke))) } 
+                                    quote! { Ok(#abu::ToolCallResult::success(format!("{}", #fn_invoke))) } 
                                 }
                             } else {
                                 // Result 但没有泛型参数?
-                                quote! { Ok(#abu::tool::ToolCallResult::success(format!("{}", #fn_invoke))) }
+                                quote! { Ok(#abu::ToolCallResult::success(format!("{}", #fn_invoke))) }
                             }
                         } else {
                             // 普通返回值 (如 String, i32 等)
                             quote! {
-                                Ok(#abu::tool::ToolCallResult::success(format!("{}", #fn_invoke)))
+                                Ok(#abu::ToolCallResult::success(format!("{}", #fn_invoke)))
                             }
                         }
                     } else {
