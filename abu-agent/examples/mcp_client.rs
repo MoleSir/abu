@@ -1,11 +1,11 @@
-use abu_agent::agent::AgentBuilder;
+use abu_agent::AgentBuilder;
 use tracing::{debug, info, level_filters::LevelFilter};
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
         .with_target(false)
-        .with_max_level(LevelFilter::INFO)
+        .with_max_level(LevelFilter::DEBUG)
         .with_level(true)
         .init();
 
@@ -27,7 +27,7 @@ async fn result_main() -> Result<(), Box<dyn std::error::Error>> {
     debug!("{:#?}", agent.tool_list().await);
     
     agent.run("帮我查询上海的天气").await?;
-    // agent.run("我的名字是？").await?;
+    agent.run("我的名字是？").await?;
 
     Ok(())
 } 

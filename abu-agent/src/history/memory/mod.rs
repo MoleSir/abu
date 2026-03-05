@@ -2,10 +2,10 @@ mod sequential;
 mod slidingwindow;
 mod summary;
 
+use abu_api::chat::ChatMessage;
 pub use sequential::SequentialMemory;
 pub use slidingwindow::SliceWindowMemory;
 pub use summary::SummarizationMemory;
-use abu_api::chat::ChatMessage;
 
 #[async_trait::async_trait]
 pub trait Memory : Send + Sync {

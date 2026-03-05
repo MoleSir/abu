@@ -1,4 +1,4 @@
-use abu_agent::agent::AgentBuilder;
+use abu_agent::AgentBuilder;
 use tracing::{debug, info, level_filters::LevelFilter};
 
 #[tokio::main]
@@ -19,19 +19,17 @@ async fn result_main() -> Result<(), Box<dyn std::error::Error>> {
     let mut agent = AgentBuilder::from_env()
         .with_builin_tools(true)
         .system_prompt("You are an agent.")
-        // .with_skills("./skills")
+        .with_skills("./skills")
         .build()
         .await?;
 
     info!("{}", agent.system_prompt());
     debug!("{:#?}", agent.tool_list().await);
     
-    // agent.run("What skills are available? just tell me all skill's name").await?;
-    agent.run("tell me the result of 1 + 1").await?;
-    agent.run("tell me the result of 2 + 1").await?;
-    // agent.run("Load the agent-builder skill and follow its instructions").await?;
-    // agent.run("I need to do a code review -- load the relevant skill first").await?;
-    // agent.run("Build an MCP server using the mcp-builder skill, save code to ./temp/mcp.py").await?;
+    agent.run("What skills are available? just tell me all skill's name").await?;
+    agent.run("Load the agent-builder skill and follow its instructions").await?;
+    agent.run("I need to do a code review -- load the relevant skill first").await?;
+    agent.run("Build an MCP server using the mcp-builder skill, save code to ./temp/mcp.py").await?;
 
     Ok(())
 } 

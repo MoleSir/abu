@@ -1,4 +1,4 @@
-use abu_agent::agent::AgentBuilder;
+use abu_agent::AgentBuilder;
 use tracing::info;
 
 #[tokio::main]

@@ -1,7 +1,8 @@
 use std::{path::PathBuf, sync::Arc};
+use abu_tool::Tool;
 use tokio::sync::RwLock;
-use crate::{llm::LLM, memory::{Memory, SequentialMemory}, tool::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWritor}, terminate::Terminator, Tool}, AgentResult};
-use super::{history::History, Agent, AgentConfig, AgentKit};
+use crate::{history::{memory::{Memory, SequentialMemory}, AgentHistory}, kit::tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWritor}, terminate::Terminator}, llm::LLM, AgentResult};
+use super::{Agent, AgentConfig, AgentKit};
 
 const DEFAULT_SYSTEM_PROMPT: &str = "You are an agent.";
 
@@ -15,6 +16,7 @@ pub struct AgentBuilder {
     pub with_subagent: bool,
     pub tools: Vec<Box<dyn Tool>>,
     pub mcpservers: Vec<(String, Vec<String>)>,
+    pub mcpconfig_path: Option<PathBuf>,
 }
 
 impl Default for AgentConfig {
@@ -38,6 +40,7 @@ impl AgentBuilder {
         let mut kit = AgentKit::new();
         kit.add_tool(Terminator::new());
 
+        // tool
         if self.with_builin_tools {
             kit.add_tool(Bash::new());
             kit.add_tool(Calculator::new());
@@ -50,16 +53,23 @@ impl AgentBuilder {
             kit.add_tool_box(tool);
         }
 
+        // mcp
+        if let Some(path) = self.mcpconfig_path {
+            kit.load_mcpconfig(&path).await?;
+        }
+
         for (cmd, args) in self.mcpservers {
             kit.add_mcp_server(&cmd, &args).await?;
         }
 
+        // skill
         if let Some(skill_path) = self.with_skills {
             kit.load_skill(skill_path)?;
             system_prompt = kit.attach_system_prompt(&system_prompt);   
         }
 
-        let history = History::new(self.memory, &system_prompt);
+        // history
+        let history = AgentHistory::new(self.memory, &system_prompt);
 
         Ok(Agent {
             config: self.config,
@@ -92,6 +102,7 @@ impl Default for AgentBuilder {
             with_subagent: false,
             tools: vec![],
             mcpservers: vec![],
+            mcpconfig_path: None,
         }
     }
 }
@@ -150,6 +161,11 @@ impl AgentBuilder {
         self
     }
 
+    pub fn with_mcpconfig(mut self, path: impl Into<PathBuf>) -> Self {
+        self.mcpconfig_path = Some(path.into());
+        self
+    }
+
     pub fn with_mcpserver<'a>(mut self, cmd: &str, args: impl IntoIterator<Item = &'a str>) -> Self {
         let args = args.into_iter().collect::<Vec<_>>();
         let cmd = cmd.to_string();
@@ -164,7 +180,7 @@ impl AgentBuilder {
 
 #[cfg(test)]
 mod test {
-    use crate::agent::AgentBuilder;
+    use crate::AgentBuilder;
 
     #[tokio::test]
     async fn test_build() {

@@ -1,12 +1,14 @@
 use abu_api::{chat::ChatRequestBuilderError, ApiError};
 use abu_mcp::McpError;
 use abu_skill::SkillError;
-
-use crate::tool::ToolError;
+use abu_tool::ToolError;
 
 // #[derive(Debug, thiserror::Error)]
 #[thiserrorctx::context_error]
 pub enum AgentError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
     #[error(transparent)]
     Skill(#[from] SkillError),
 

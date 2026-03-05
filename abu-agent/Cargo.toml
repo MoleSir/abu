@@ -9,6 +9,7 @@ license = { workspace = true }
 
 [dependencies]
 abu-api = { workspace = true }
+abu-tool = { workspace = true }
 abu-macros = { workspace = true }
 abu-mcp = { workspace = true }
 abu-skill = { workspace = true }

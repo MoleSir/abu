@@ -1,13 +1,15 @@
+pub mod memory;
 use abu_api::chat::ChatMessage;
-use crate::{memory::Memory, AgentError, AgentResult};
+use memory::Memory;
+use crate::{AgentError, AgentResult};
 
-pub struct History {
+pub struct AgentHistory {
     pub memory: Box<dyn Memory>,
     pub system_prompt: String,
     pub messages: Vec<ChatMessage>,
 }
 
-impl History {
+impl AgentHistory {
     pub fn new(memory: Box<dyn Memory>, system_prompt: impl Into<String>) -> Self {
         Self {
             memory,
