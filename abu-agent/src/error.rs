@@ -13,7 +13,7 @@ pub enum AgentError {
     Skill(#[from] SkillError),
 
     #[error(transparent)]
-    Memory(anyhow::Error),
+    Memory(Box<dyn std::error::Error>),
 
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),

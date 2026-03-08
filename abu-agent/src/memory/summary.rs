@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use abu_api::chat::ChatMessage;
 use tracing::debug;
-use crate::llm::LLM;
+use crate::{llm::LLM, AgentCtxError, AgentResult};
 use super::Memory;
 
 pub struct SummarizationMemory {
@@ -11,6 +11,11 @@ pub struct SummarizationMemory {
 }
 
 impl SummarizationMemory {
+    pub fn from_env(summary_threshold: usize) -> AgentResult<Self> {
+        let llm = LLM::from_env()?;
+        Ok(Self::new(Arc::new(llm), summary_threshold))
+    }
+
     pub fn new(llm: Arc<LLM>, summary_threshold: usize) -> Self {
         Self { 
             llm,
@@ -26,7 +31,7 @@ impl SummarizationMemory {
     }
 
     /// call llm to summary `messages` and reset `messages`
-    async fn consolidate_memory(&mut self) -> anyhow::Result<()> {
+    async fn consolidate_memory(&mut self) -> AgentResult<()> {
         debug!("--- [Memory Consolidation Triggered] ---");
 
         // collection all messages
@@ -46,7 +51,7 @@ impl SummarizationMemory {
             ChatMessage::system("You are an expert summarization engine."),
             ChatMessage::user(summarization_prompt),
         ];
-        let response = self.llm.chat(&messages, &[], 0.7).await.map_err(|e| anyhow::anyhow!(e.to_string()))?;
+        let response = self.llm.chat(&messages, &[], 0.7).await?;
         
         // update messages
         self.messages.clear();
@@ -59,23 +64,22 @@ impl SummarizationMemory {
 
 #[async_trait::async_trait]
 impl Memory for SummarizationMemory {
-    async fn fork(&self) -> anyhow::Result<Box<dyn Memory>> {
-        Ok(Box::new(Self::new(self.llm.clone(), self.summary_threshold)))
-    }
+    type Error = AgentCtxError;
 
-    async fn add_message(&mut self, message: ChatMessage) -> anyhow::Result<()> {
-        self.messages.push(message);
-        Ok(())
-    }
-
-    async fn compact_messages(&mut self, _query: &str) -> anyhow::Result<Vec<ChatMessage>> {
+    async fn add(&mut self, user_input: &str, ai_response: &str) -> Result<(), Self::Error> {
+        self.messages.push(ChatMessage::user(user_input));
+        self.messages.push(ChatMessage::assistant(ai_response, []));
         if self.user_message_count() >= self.summary_threshold {
             self.consolidate_memory().await?;
         }
+        Ok(())
+    }
+
+    async fn search(&mut self, _query: &str) -> Result<Vec<ChatMessage>, Self::Error> {
         Ok(self.messages.clone())
     }
 
-    async fn clear(&mut self) -> anyhow::Result<()> {
+    async fn clear(&mut self) -> Result<(), Self::Error> {
         self.messages.clear();
         Ok(())
     }

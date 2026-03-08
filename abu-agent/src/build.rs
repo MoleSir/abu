@@ -1,15 +1,15 @@
 use std::{path::PathBuf, sync::Arc};
 use abu_tool::Tool;
 use tokio::sync::RwLock;
-use crate::{history::{memory::{Memory, SequentialMemory}, AgentHistory}, kit::tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWritor}, terminate::Terminator}, llm::LLM, AgentResult};
+use crate::{context::ContextBuilder, kit::tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWritor}, terminate::Terminator}, llm::LLM, memory::{Memory, SequentialMemory}, AgentResult};
 use super::{Agent, AgentConfig, AgentKit};
 
 const DEFAULT_SYSTEM_PROMPT: &str = "You are an agent.";
 
-pub struct AgentBuilder {
+pub struct AgentBuilder<M: Memory = SequentialMemory> {
     pub llm: LLMBuilder,
     pub config: AgentConfig,
-    pub memory: Box<dyn Memory>,
+    pub memory: M,
     pub system_prompt: String,
     pub with_skills: Option<PathBuf>,
     pub with_builin_tools: bool,
@@ -33,8 +33,8 @@ pub enum LLMBuilder {
     With { base_url: String, api_key: String, model: String }
 }
 
-impl AgentBuilder {
-    pub async fn build(self) -> AgentResult<Agent> {
+impl<M: Memory> AgentBuilder<M> {
+    pub async fn build(self) -> AgentResult<Agent<M>> {
         let llm = self.llm.build()?;
         let mut system_prompt = format!("{}\nOnce you consider the work complete or do task to do, call the terminate method.", self.system_prompt);
         let mut kit = AgentKit::new();
@@ -68,14 +68,15 @@ impl AgentBuilder {
             system_prompt = kit.attach_system_prompt(&system_prompt);   
         }
 
-        // history
-        let history = AgentHistory::new(self.memory, &system_prompt);
+        // context builder
+        let context_builder = ContextBuilder::new(system_prompt);
 
         Ok(Agent {
             config: self.config,
             llm: Arc::new(llm),
-            history,
+            memory: self.memory,
             kit: Arc::new(RwLock::new(kit)),
+            context_builder
         })
 
     }
@@ -90,12 +91,12 @@ impl LLMBuilder {
     }
 }
 
-impl Default for AgentBuilder {
+impl<M: Memory + Default> Default for AgentBuilder<M> {
     fn default() -> Self {
         Self {
             llm: LLMBuilder::FromEnv,
             config: AgentConfig::default(),
-            memory: Box::new(SequentialMemory::new()),
+            memory: M::default(),
             system_prompt: DEFAULT_SYSTEM_PROMPT.to_string(),
             with_skills: None,
             with_builin_tools: true,
@@ -107,7 +108,7 @@ impl Default for AgentBuilder {
     }
 }
 
-impl AgentBuilder {
+impl AgentBuilder<SequentialMemory> {
     pub fn from_env() -> Self {
         Self::default()
     }
@@ -118,7 +119,9 @@ impl AgentBuilder {
             ..Default::default()
         }
     }
+}
 
+impl<M: Memory> AgentBuilder<M> {
     pub fn temperature(mut self, temperature: f64) -> Self {
         self.config.temperature = temperature;
         self
@@ -129,9 +132,19 @@ impl AgentBuilder {
         self
     }
 
-    pub fn memory(mut self, memory: Box<dyn Memory>) -> Self {
-        self.memory = memory;
-        self
+    pub fn memory<NM: Memory>(self, memory: NM) -> AgentBuilder<NM> {
+        AgentBuilder {
+            memory,
+            llm: self.llm,
+            config: self.config,
+            system_prompt: self.system_prompt,
+            with_skills: self.with_skills,
+            with_builin_tools: self.with_builin_tools,
+            with_subagent: self.with_subagent,
+            tools: self.tools,
+            mcpservers: self.mcpservers,
+            mcpconfig_path: self.mcpconfig_path
+        }
     }
 
     pub fn system_prompt(mut self, system_prompt: impl Into<String>) -> Self {
@@ -177,10 +190,9 @@ impl AgentBuilder {
     }
 }
 
-
 #[cfg(test)]
 mod test {
-    use crate::AgentBuilder;
+    use super::AgentBuilder;
 
     #[tokio::test]
     async fn test_build() {
