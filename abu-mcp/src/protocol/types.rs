@@ -129,7 +129,6 @@ pub struct McpToolInputSchema {
     pub required: Option<serde_json::Value>,
 }
 
-
 /// Reference https://modelcontextprotocol.io/specification/2024-11-05/server/tools
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 pub struct McpToolCall {

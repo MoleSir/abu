@@ -1,4 +1,5 @@
 use abu_agent::AgentBuilder;
+use abu_provider::deepseek::DeepSeek;
 use tracing::{debug, info, level_filters::LevelFilter};
 
 #[tokio::main]
@@ -16,7 +17,10 @@ async fn main() {
 }
 
 async fn result_main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut agent = AgentBuilder::from_env()
+    dotenv::from_filename(".env")?;
+    let llm = DeepSeek::from_env().expect("new deepseek");
+    let model = std::env::var("MODEL_ID")?;
+    let mut agent = AgentBuilder::new(llm, model)
         .with_builin_tools(true)
         .system_prompt("You are an autonomous task-solving agent.")
         .with_mcpserver("python3", ["./mcp/weather.py"])
@@ -24,7 +28,7 @@ async fn result_main() -> Result<(), Box<dyn std::error::Error>> {
         .build()
         .await?;
 
-    debug!("{:#?}", agent.tool_list().await);
+    debug!("{:#?}", agent.tool_list());
     
     agent.run("帮我查询上海的天气").await?;
     agent.run("我的名字是？").await?;

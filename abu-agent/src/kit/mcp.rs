@@ -1,5 +1,4 @@
 use std::{collections::HashMap, ffi::OsStr, path::Path};
-use abu_api::chat::ToolCall;
 use abu_mcp::{client::McpClient, transport::process::McpProcessTransport, McpToolCall, McpToolCallResult, McpToolCallResultContent};
 use abu_tool::{ToolCallResult, ToolError};
 use thiserrorctx::Context;
@@ -68,16 +67,18 @@ impl McpManager {
         Ok(self.stdio_servers.last().unwrap())
     }
 
-    pub async fn execute_toolcall(&mut self, tool_call: &ToolCall) -> AgentResult<ToolCallResult> {
+    pub async fn execute_toolcall(&mut self, name: String, arguments: serde_json::Value) -> AgentResult<ToolCallResult> {
         for client in self.stdio_servers.iter_mut() {
-            if client.has_tool(&tool_call.function.name) {
-                let mcp_tool_call = tool_call_to_mcp_tool_call(tool_call)?;
+            if client.has_tool(&name) {
+                let mcp_tool_call = McpToolCall {
+                    name, arguments: Some(arguments)
+                };
                 let mcp_tool_call_result = client.tools_call(mcp_tool_call).await?;
                 let tool_call_result = mcp_tool_call_result_to_tool_call_result(mcp_tool_call_result);
                 return Ok(tool_call_result)
             }
         }
-        Err(ToolError::ToolNotFound(tool_call.function.name.to_string()))?
+        Err(ToolError::ToolNotFound(name))?
     }
 
     pub fn has_tool(&self, tool_name: &str) -> bool {
@@ -101,13 +102,6 @@ impl McpManager {
         client.tools_list().await.context("tools_list mcpserver")?;
         Ok(client)
     }
-}
-
-fn tool_call_to_mcp_tool_call(tool_call: &ToolCall) -> serde_json::Result<McpToolCall> {
-    Ok(McpToolCall {
-        name: tool_call.function.name.clone(),
-        arguments: Some(serde_json::from_str(&tool_call.function.arguments)?),
-    })
 }
 
 fn default_protocol_version() -> String {

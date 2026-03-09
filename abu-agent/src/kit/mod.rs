@@ -2,10 +2,10 @@ pub mod tools;
 pub mod mcp;
 pub mod sandbox;
 use std::{ffi::OsStr, path::{Path, PathBuf}, sync::Arc};
-use abu_api::chat::{FunctionInfo, ToolCall, ToolDefinition, ToolType};
+use abu_base::chat::ToolDefinition;
 use abu_mcp::McpTool;
 use abu_skill::SkillLoader;
-use abu_tool::{Tool, ToolError, ToolRegister};
+use abu_tool::{Tool, ToolCallResult, ToolError, ToolRegister};
 use mcp::McpManager;
 use tools::skill::SkillTool;
 use tracing::debug;
@@ -76,15 +76,15 @@ impl AgentKit {
         Ok(())
     }
 
-    pub async fn execute_tool(&mut self, tool_call: &ToolCall) -> AgentResult<String> {
-        if self.tools.has_tool(&tool_call.function.name) {
-            let result = self.tools.execute_toolcall(tool_call).await?;
-            Ok(result.display())
-        } else if self.mcp_manager.has_tool(&tool_call.function.name) {
-            let result = self.mcp_manager.execute_toolcall(tool_call).await?;
-            Ok(result.display())
+    pub async fn execute_tool(&mut self, name: String, arguments: serde_json::Value) -> AgentResult<ToolCallResult> {
+        if self.tools.has_tool(&name) {
+            let result = self.tools.execute(name, arguments).await?;
+            Ok(result)
+        } else if self.mcp_manager.has_tool(&name) {
+            let result = self.mcp_manager.execute_toolcall(name, arguments).await?;
+            Ok(result)
         } else {
-            Err(ToolError::ToolNotFound(tool_call.function.name.to_string()))?
+            Err(ToolError::ToolNotFound(name))?
         }
     }
 
@@ -95,18 +95,13 @@ impl AgentKit {
 
 
 fn mcp_tool_to_tool_defintion(mcp_tool: &McpTool) -> ToolDefinition {
-    let function = FunctionInfo {
+    ToolDefinition {
         name: mcp_tool.name.clone(),
         description: mcp_tool.description.clone().unwrap_or_default(),
-        parameters: serde_json::json!({
+        schema: serde_json::json!({
             "type": "object",
             "properties": mcp_tool.input_schema.properties.clone().unwrap_or(serde_json::json!({})),
             "required": mcp_tool.input_schema.required.clone().unwrap_or(serde_json::json!([])),
         })
-    };
-
-    ToolDefinition {
-        r#type: ToolType::Function,
-        function
     }
 }

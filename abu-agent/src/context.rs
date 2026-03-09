@@ -1,4 +1,4 @@
-use abu_api::chat::ChatMessage;
+use abu_base::chat::ChatMessage;
 
 pub struct ContextBuilder {
     pub system_prompt: String,   

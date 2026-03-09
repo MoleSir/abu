@@ -1,0 +1,22 @@
+[package]
+name = "abu-provider"
+version = { workspace = true }
+edition = { workspace = true }
+description = { workspace = true }
+keywords = { workspace = true }
+license = { workspace = true }
+
+
+[dependencies]
+abu-base = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+derive_builder = { workspace = true }
+reqwest = { workspace = true, features = ["json", "blocking"] }
+strum = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros"] }
+dotenv = { workspace = true }

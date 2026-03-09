@@ -1,5 +1,5 @@
 use std::{collections::VecDeque, convert::Infallible}; 
-use abu_api::chat::ChatMessage;
+use abu_base::chat::ChatMessage;
 use super::Memory;
 
 pub struct SliceWindowMemory {

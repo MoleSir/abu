@@ -1,4 +1,5 @@
 use abu_agent::AgentBuilder;
+use abu_provider::deepseek::DeepSeek;
 use tracing::{debug, info, level_filters::LevelFilter};
 
 #[tokio::main]
@@ -16,7 +17,10 @@ async fn main() {
 }
 
 async fn result_main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut agent = AgentBuilder::from_env()
+    dotenv::from_filename(".env")?;
+    let llm = DeepSeek::from_env().expect("new deepseek");
+    let model = std::env::var("MODEL_ID")?;
+    let mut agent = AgentBuilder::new(llm, model)
         .with_builin_tools(true)
         .system_prompt("You are an agent.")
         .with_skills("./skills")
@@ -24,7 +28,7 @@ async fn result_main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     info!("{}", agent.system_prompt());
-    debug!("{:#?}", agent.tool_list().await);
+    debug!("{:#?}", agent.tool_list());
     
     agent.run("What skills are available? just tell me all skill's name").await?;
     agent.run("Load the agent-builder skill and follow its instructions").await?;

@@ -125,11 +125,12 @@ impl<T: McpTransport> FastMcp<T> {
 
 fn tool_to_mcptool(tool: &Box<dyn Tool>) -> McpTool {
     fn mcptool_input_schema(params: &[ToolParameter]) -> McpToolInputSchema {
-        let info = ToolParameter::extract_info(params);
+        let properties = ToolParameter::build_params_properties(params);
+        let required = ToolParameter::build_params_required(params);
         McpToolInputSchema {
             r#type: "object".to_string(),
-            properties: Some(serde_json::json!(info.properties)),
-            required: Some(serde_json::json!(info.required)),
+            properties: Some(serde_json::json!(properties)),
+            required: Some(serde_json::json!(required)),
         }
     }
     let schema = mcptool_input_schema(&tool.parameters());

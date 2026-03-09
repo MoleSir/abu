@@ -1,4 +1,4 @@
-use abu_api::{chat::ChatRequestBuilderError, ApiError};
+use abu_base::chat::ChatRequestBuilderError;
 use abu_mcp::McpError;
 use abu_skill::SkillError;
 use abu_tool::ToolError;
@@ -27,8 +27,8 @@ pub enum AgentError {
     #[error("Unsupport tool {0}")]
     UnsupportTool(String),
 
-    #[error(transparent)]
-    Api(#[from] ApiError),
+    #[error("chat provide error: {0}")]
+    ChatProvider(Box<dyn std::error::Error + Sync + Send + 'static>),
 
     #[error(transparent)]
     EnvVar(#[from] std::env::VarError),

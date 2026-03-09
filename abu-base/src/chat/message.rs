@@ -1,6 +1,4 @@
-use std::fmt::Display;
-
-use crate::{ApiError, ApiResult};
+use crate::common::Role;
 
 use super::tool::*;
 use serde::{Deserialize, Serialize};
@@ -76,38 +74,29 @@ pub struct AssistantMessage {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ToolMessage {
-    /// The contents of the tool message.
     pub content: String,
-    /// Tool call that this message is responding to.
     pub tool_call_id: String,
 }
 
-impl Display for SystemMessage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "system: {}", self.content)
-    }
-}
-
-impl Display for UserMessage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "user: {}", self.content)
-    }
-}
-
-impl Display for AssistantMessage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "assistant: {}", self.content)
-    }
-}
-
-impl Display for ToolMessage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "tool: {}", self.content)
-    }
-}
-
-
 impl ChatMessage {
+    pub fn role(&self) -> Role {
+        match self {
+            Self::Assistant(_) => Role::Assistant,
+            Self::User(_) => Role::User,
+            Self::Tool(_) => Role::Tool,
+            Self::System(_) => Role::System,
+        }
+    }
+
+    pub fn content(&self) -> &str {
+        match self {
+            Self::Assistant(m) => &m.content,
+            Self::User(m) => &m.content,
+            Self::Tool(m) => &m.content,
+            Self::System(m) => &m.content,
+        }
+    }
+
     pub fn system(content: impl Into<String>) -> Self {
         Self::System(SystemMessage {
             content: content.into(),
@@ -153,46 +142,35 @@ impl ChatMessage {
         matches!(self, Self::Tool(_))
     }
 
-    pub fn as_system(&self) -> ApiResult<&SystemMessage> {
+    pub fn as_system(&self) -> Option<&SystemMessage> {
         if let Self::System(msg) = self {
-            Ok(msg)
+            Some(msg)
         } else {
-            Err(ApiError::ExceptMessage("system"))
+            None
         }
     }
 
-    pub fn as_user(&self) -> ApiResult<&UserMessage> {
+    pub fn as_user(&self) -> Option<&UserMessage> {
         if let Self::User(msg) = self {
-            Ok(msg)
+            Some(msg)
         } else {
-            Err(ApiError::ExceptMessage("user"))
+            None
         }
     }
 
-    pub fn as_assistant(&self) -> ApiResult<&AssistantMessage> {
+    pub fn as_assistant(&self) -> Option<&AssistantMessage> {
         if let Self::Assistant(msg) = self {
-            Ok(msg)
+            Some(msg)
         } else {
-            Err(ApiError::ExceptMessage("assistant"))
+            None
         }
     }
 
-    pub fn as_tool(&self) -> ApiResult<&ToolMessage> {
+    pub fn as_tool(&self) -> Option<&ToolMessage> {
         if let Self::Tool(msg) = self {
-            Ok(msg)
+            Some(msg)
         } else {
-            Err(ApiError::ExceptMessage("tool"))
-        }
-    }
-}
-
-impl Display for ChatMessage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::System(m) => m.fmt(f),
-            Self::User(m) => m.fmt(f),
-            Self::Assistant(m) => m.fmt(f),
-            Self::Tool(m) => m.fmt(f),
+            None
         }
     }
 }

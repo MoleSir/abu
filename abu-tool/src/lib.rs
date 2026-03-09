@@ -1,9 +1,7 @@
 mod register;
 pub use register::ToolRegister;
-
-use abu_api::chat::{FunctionInfo, ToolDefinition, ToolType};
+pub use abu_base::chat::ToolDefinition;
 use serde_json::Value;
-use std::collections::HashMap;
 
 #[async_trait::async_trait]
 pub trait Tool: Send + Sync {
@@ -13,18 +11,15 @@ pub trait Tool: Send + Sync {
     async fn execute(&self, args: Value) -> ToolResult<ToolCallResult>;
 
     fn to_function_define(&self) -> ToolDefinition {
-        let schema = ToolParameter::parameters_schema(&self.parameters());
         ToolDefinition {
-            r#type: ToolType::Function,
-            function: FunctionInfo {
-                description: self.description().to_string(),
-                name: self.name().to_string(),
-                parameters: schema,
-            }
+            name: self.name().to_string(),
+            description: self.description().to_string(),
+            schema: build_params_schema(&self.parameters())
         }
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ToolParameter {
     pub name: String,
     pub required: bool,
@@ -32,24 +27,14 @@ pub struct ToolParameter {
     pub kind: ToolParameterKind,
 }
 
-pub struct ToolParametersInfo {
-    pub properties: HashMap<String, serde_json::Value>,
-    pub required: Vec<String>,
-}
-
+#[derive(Debug, Clone)]
 pub enum ToolParameterKind {
     Object(Vec<ToolParameter>),
     Array(Box<ToolParameterKind>),
-    String(Option<Vec<&'static str>>),
+    String(Option<Vec<String>>),
     Integer,
     Number,
     Boolean,
-}
-
-#[derive(Debug, Clone)]
-pub struct ToolCallResult {
-    pub is_error: bool,
-    pub context: String,
 }
 
 impl ToolParameter {
@@ -80,7 +65,7 @@ impl ToolParameter {
         }
     }
 
-    pub fn string_with(name: impl Into<String>, enums: Vec<&'static str>) -> Self {
+    pub fn string_with(name: impl Into<String>, enums: Vec<String>) -> Self {
         Self {
             name: name.into(),
             required: true,
@@ -123,34 +108,31 @@ impl ToolParameter {
         schema
     }
 
-    pub fn extract_info(params: &[ToolParameter]) -> ToolParametersInfo {
-        let mut properties = HashMap::new();
-        let mut required = vec![];
-    
+    pub fn build_params_properties(params: &[ToolParameter]) -> serde_json::Map<String, serde_json::Value> {
+        let mut properties = serde_json::Map::new();
         for param in params {
-            if param.required {
-                required.push(param.name.clone());
+            let mut param_schema = param.kind.to_schema();        
+            if let Some(desc) = &param.description {
+                param_schema["description"] = serde_json::json!(desc);
             }
-            properties.insert(param.name.clone(), param.to_schema());
+            
+            properties.insert(param.name.clone(), param_schema);
         }
-    
-        ToolParametersInfo { properties, required }
+        properties
     }
     
-    pub fn parameters_schema(params: &[ToolParameter]) -> serde_json::Value {
-        let info = Self::extract_info(params);
-        serde_json::json!({
-            "type": "object",
-            "properties": info.properties,
-            "required": info.required,
-        })
+    pub fn build_params_required(params: &[ToolParameter]) -> Vec<String> {
+        params.iter()
+            .filter(|p| p.required)
+            .map(|p| p.name.clone())
+            .collect()
     }
 }
 
 impl ToolParameterKind {
     pub fn to_schema(&self) -> serde_json::Value {
         match &self {
-            Self::Object(params) => ToolParameter::parameters_schema(&params),
+            Self::Object(params) => build_params_schema(&params),
             Self::Array(kind) => serde_json::json!({
                 "type": "array",
                 "items": kind.to_schema(),
@@ -166,6 +148,22 @@ impl ToolParameterKind {
     }
 }
 
+pub(crate) fn build_params_schema(params: &[ToolParameter]) -> serde_json::Value {
+    let properties = ToolParameter::build_params_properties(params);
+    let required = ToolParameter::build_params_required(params);
+    serde_json::json!({
+        "type": "object",
+        "properties": properties,
+        "required": required,
+    })
+}
+
+#[derive(Debug, Clone)]
+pub struct ToolCallResult {
+    pub is_error: bool,
+    pub context: String,
+}
+
 impl ToolCallResult {
     pub fn error(context: impl Into<String>) -> Self {
         Self { is_error: true, context: context.into() }
@@ -173,14 +171,6 @@ impl ToolCallResult {
 
     pub fn success(context: impl Into<String>) -> Self {
         Self { is_error: false, context: context.into() }
-    }
-
-    pub fn display(&self) -> String {
-        if self.is_error {
-            format!("tool execeute failed: {}", self.context)
-        } else {
-            format!("tool execeute success: {}", self.context)
-        }
     }
 }
 
