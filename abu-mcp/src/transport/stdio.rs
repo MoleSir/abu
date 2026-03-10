@@ -1,7 +1,6 @@
 use crate::error::McpError;
 use crate::McpResult;
 use super::{McpMessage, McpTransport};
-use async_trait::async_trait;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 pub struct McpStdioTransport {
@@ -53,7 +52,7 @@ impl Clone for McpStdioTransport {
     }
 }
 
-#[async_trait]
+
 impl McpTransport for McpStdioTransport {
     async fn send(&mut self, message: McpMessage) -> McpResult<()> {
         let json = serde_json::to_string(&message)

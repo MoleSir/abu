@@ -5,7 +5,8 @@ members = [
     "abu-provider",
     "abu-tool", 
     "abu-mcp", 
-    "abu-skill", 
+    "abu-skill",
+    "abu-rag", 
     "abu-agent", 
 
     "abu-macros", 
@@ -28,6 +29,7 @@ abu-provider = { path = "./abu-provider", package = "abu-provider", version = "0
 abu-tool = { path = "./abu-tool", package = "abu-tool", version = "0.1.0" }
 abu-mcp = { path = "./abu-mcp", package = "abu-mcp", version = "0.1.0" }
 abu-skill = { path = "./abu-skill", package = "abu-skill", version = "0.1.0" }
+abu-rag = { path = "./abu-rag", package = "abu-rag", version = "0.1.0" }
 abu-agent = { path = "./abu-agent", package = "abu-agent", version = "0.1.0" }
 
 abu-macros = { path = "./abu-macros", package = "abu-macros", version = "0.1.0" }
@@ -50,3 +52,4 @@ tempfile = "3.26"
 regex = "1.12"
 meval = "0.2"
 anyhow = "1.0"
+uuid = "1.22"

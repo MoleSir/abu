@@ -13,10 +13,9 @@ use crate::{
     McpToolCall, 
     McpToolCallResult
 };
-use async_trait::async_trait;
 use tracing::debug;
 
-#[async_trait]
+#[allow(async_fn_in_trait)]
 pub trait McpServerHandler: Send + Sync {
     async fn initialize(&self, result: McpClientInitializeResult) -> McpResult<McpServerInitializeResult>;
 

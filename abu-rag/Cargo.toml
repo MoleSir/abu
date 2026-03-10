@@ -1,0 +1,29 @@
+[package]
+name = "abu-rag"
+version = { workspace = true }
+edition = { workspace = true }
+description = { workspace = true }
+keywords = { workspace = true }
+license = { workspace = true }
+
+
+[dependencies]
+abu-provider = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true, features = ["v4"] }
+
+# sqlx = { version = "0.8", features =["sqlite", "runtime-tokio-native-tls"], optional = true }
+rusqlite = { version = "0.31", features =["bundled"], optional = true }
+
+[dev-dependencies]
+tracing-subscriber = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+anyhow = { workspace = true }
+dotenv = { workspace = true }
+
+
+[features]
+default = []
+sqlite = ["rusqlite"]

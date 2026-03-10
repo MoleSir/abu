@@ -13,7 +13,6 @@ impl SequentialMemory {
     }
 }
 
-#[async_trait::async_trait]
 impl Memory for SequentialMemory {
     type Error = Infallible;
 

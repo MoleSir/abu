@@ -3,7 +3,6 @@ use std::process::Stdio;
 use tokio::process::{Command, Child, ChildStdout};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::sync::mpsc;
-use async_trait::async_trait;
 
 use crate::error::McpError;
 use crate::McpResult;
@@ -84,7 +83,6 @@ impl McpProcessTransport {
     }
 }
 
-#[async_trait]
 impl McpTransport for McpProcessTransport {
     async fn send(&mut self, message: McpMessage) -> McpResult<()> {
         // 序列化消息为 JSON 字符串

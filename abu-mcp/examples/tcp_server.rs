@@ -10,7 +10,7 @@ use tracing::{debug, info};
 
 struct HelloHandler;
 
-#[async_trait::async_trait]
+
 impl McpServerHandler for HelloHandler {
     async fn initialize(&self, result: McpClientInitializeResult) -> McpResult<McpServerInitializeResult> 
     {

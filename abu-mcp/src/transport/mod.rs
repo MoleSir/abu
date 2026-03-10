@@ -4,7 +4,6 @@ pub mod process;
 
 use crate::{McpNotification, McpRequest, McpResponse, McpResult};
 use serde::{Deserialize, Serialize};
-use async_trait::async_trait;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -14,7 +13,7 @@ pub enum McpMessage {
     Notification(McpNotification)
 }
 
-#[async_trait]
+#[allow(async_fn_in_trait)]
 pub trait McpTransport: Send + Sync + 'static {
     async fn send(&mut self, message: McpMessage) -> McpResult<()>;
     async fn receive(&mut self) -> McpResult<McpMessage>;

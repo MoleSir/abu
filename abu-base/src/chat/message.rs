@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::common::Role;
 
 use super::tool::*;
@@ -171,6 +173,17 @@ impl ChatMessage {
             Some(msg)
         } else {
             None
+        }
+    }
+}
+
+impl Display for Role {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Role::System => write!(f, "system"),
+            Role::User => write!(f, "user"),
+            Role::Assistant => write!(f, "assiatant"),
+            Role::Tool => write!(f, "tool"),
         }
     }
 }

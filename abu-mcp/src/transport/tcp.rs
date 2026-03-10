@@ -1,4 +1,3 @@
-use async_trait::async_trait;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 use super::{McpMessage, McpResult, McpTransport};
 use crate::McpError;
@@ -35,7 +34,6 @@ impl McpTcpTransport {
     }
 }
 
-#[async_trait]
 impl McpTransport for McpTcpTransport {
     async fn send(&mut self, message: McpMessage) -> McpResult<()> {
         let json = serde_json::to_string(&message)

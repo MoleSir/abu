@@ -26,7 +26,7 @@ impl FastMcpHandler {
     }
 }
 
-#[async_trait]
+
 impl McpServerHandler for FastMcpHandler {
     async fn initialize(&self, result: McpClientInitializeResult) -> McpResult<McpServerInitializeResult> 
     {
