@@ -56,3 +56,8 @@ let rag_content = retr_chunks.iter()
 
 println!("{}", rag_content);
 ```
+
+
+## Reference
+
+- https://gist.github.com/cradiator/90e4a14797f74efda7559c80db5c2d45
