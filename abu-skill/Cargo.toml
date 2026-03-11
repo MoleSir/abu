@@ -2,7 +2,7 @@
 name = "abu-skill"
 version = { workspace = true }
 edition = { workspace = true }
-description = { workspace = true }
+description = "Skill loading and management"
 keywords = { workspace = true }
 license = { workspace = true }
 

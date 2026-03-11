@@ -17,7 +17,7 @@ members = [
 version = "0.1.0"
 edition = "2024"
 repository = "https://github.com/MoleSir/abu.git"
-description = "agent dev kit"
+description = "llm dev kit"
 keywords = ["llm", "agent"]
 license = "MIT"
 

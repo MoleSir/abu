@@ -2,7 +2,7 @@
 name = "abu-macros"
 version = { workspace = true }
 edition = { workspace = true }
-description = { workspace = true }
+description = "abu macros"
 keywords = { workspace = true }
 license = { workspace = true }
 

@@ -52,7 +52,7 @@ impl Clone for McpStdioTransport {
     }
 }
 
-
+#[async_trait::async_trait]
 impl McpTransport for McpStdioTransport {
     async fn send(&mut self, message: McpMessage) -> McpResult<()> {
         let json = serde_json::to_string(&message)

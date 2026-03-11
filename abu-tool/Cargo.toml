@@ -2,7 +2,7 @@
 name = "abu-tool"
 version = { workspace = true }
 edition = { workspace = true }
-description = { workspace = true }
+description = "Agent tool abstractions"
 keywords = { workspace = true }
 license = { workspace = true }
 

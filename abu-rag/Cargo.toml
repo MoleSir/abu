@@ -2,7 +2,7 @@
 name = "abu-rag"
 version = { workspace = true }
 edition = { workspace = true }
-description = { workspace = true }
+description = "Retrieval-Augmented Generation system"
 keywords = { workspace = true }
 license = { workspace = true }
 

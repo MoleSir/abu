@@ -2,7 +2,7 @@
 name = "abu-provider"
 version = { workspace = true }
 edition = { workspace = true }
-description = { workspace = true }
+description = "API integration supporting multiple vendors."
 keywords = { workspace = true }
 license = { workspace = true }
 

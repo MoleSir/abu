@@ -2,7 +2,7 @@
 name = "abu-agent"
 version = { workspace = true }
 edition = { workspace = true }
-description = { workspace = true }
+description = "Agent development library"
 keywords = { workspace = true }
 license = { workspace = true }
 

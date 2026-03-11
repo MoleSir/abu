@@ -2,7 +2,7 @@
 name = "abu-base"
 version = { workspace = true }
 edition = { workspace = true }
-description = { workspace = true }
+description = "Core data structures for chat and embeddings."
 keywords = { workspace = true }
 license = { workspace = true }
 

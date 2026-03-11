@@ -5,7 +5,6 @@ use crate::{McpResource, McpToolInputSchema};
 use crate::{protocol::McpTool, McpClientInitializeResult, McpError, McpImplementation, McpPromptsCapability, McpResourceCapability, McpResult, McpServerCapabilities, McpServerInitializeResult, McpToolCallResult, McpToolCallResultContent, McpToolsCapability};
 use crate::server::{McpServer, McpServerHandler};
 use abu_tool::{Tool, ToolParameter};
-use async_trait::async_trait;
 use tracing::debug;
 
 pub enum Transport {

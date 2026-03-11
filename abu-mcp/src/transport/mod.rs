@@ -13,7 +13,7 @@ pub enum McpMessage {
     Notification(McpNotification)
 }
 
-#[allow(async_fn_in_trait)]
+#[async_trait::async_trait]
 pub trait McpTransport: Send + Sync + 'static {
     async fn send(&mut self, message: McpMessage) -> McpResult<()>;
     async fn receive(&mut self) -> McpResult<McpMessage>;

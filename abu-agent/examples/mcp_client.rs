@@ -19,7 +19,7 @@ async fn main() {
 async fn result_main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv::from_filename(".env")?;
     let llm = DeepSeek::from_env().expect("new deepseek");
-    let model = std::env::var("MODEL_ID")?;
+    let model = std::env::var("CHAT_MODEL")?;
     let mut agent = AgentBuilder::new(llm, model)
         .with_builin_tools(true)
         .system_prompt("You are an autonomous task-solving agent.")

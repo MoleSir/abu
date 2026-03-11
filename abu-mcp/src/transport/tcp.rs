@@ -34,6 +34,7 @@ impl McpTcpTransport {
     }
 }
 
+#[async_trait::async_trait]
 impl McpTransport for McpTcpTransport {
     async fn send(&mut self, message: McpMessage) -> McpResult<()> {
         let json = serde_json::to_string(&message)

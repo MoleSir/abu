@@ -2,7 +2,7 @@
 name = "abu-mcp"
 version = { workspace = true }
 edition = { workspace = true }
-description = { workspace = true }
+description = "MCP protocol implementation"
 keywords = { workspace = true }
 license = { workspace = true }
 

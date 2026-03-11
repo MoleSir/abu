@@ -83,6 +83,7 @@ impl McpProcessTransport {
     }
 }
 
+#[async_trait::async_trait]
 impl McpTransport for McpProcessTransport {
     async fn send(&mut self, message: McpMessage) -> McpResult<()> {
         // 序列化消息为 JSON 字符串
