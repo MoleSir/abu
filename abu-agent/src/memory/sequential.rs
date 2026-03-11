@@ -24,7 +24,7 @@ impl Memory for SequentialMemory {
         Ok(())
     }
     
-    async fn search(&mut self, _query: &str) -> Result<Vec<ChatMessage>, Self::Error> {
+    async fn search(&self, _query: &str) -> Result<Vec<ChatMessage>, Self::Error> {
         Ok(self.history.clone())
     }
 

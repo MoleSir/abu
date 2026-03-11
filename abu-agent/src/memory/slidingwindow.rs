@@ -18,25 +18,22 @@ impl SliceWindowMemory {
     pub fn window_size(&self) -> usize {
         self.window_size
     }
-
-    fn add_message(&mut self, message: ChatMessage) {
-        if self.history.len() >= self.window_size {
-            self.history.pop_front();
-        }
-        self.history.push_back(message);
-    }
 }
 
 impl Memory for SliceWindowMemory {
     type Error = Infallible;
 
     async fn add(&mut self, user_input: &str, ai_response: &str) -> Result<(), Self::Error> {
-        self.add_message(ChatMessage::user(user_input));
-        self.add_message(ChatMessage::assistant(ai_response, []));
+        while self.history.len() / 2 > self.window_size {
+            self.history.pop_front(); // Pop User
+            self.history.pop_front(); // Pop Assistant
+        }
+        self.history.push_back(ChatMessage::user(user_input));
+        self.history.push_back(ChatMessage::assistant(ai_response, []));
         Ok(())
     }
 
-    async fn search(&mut self, _query: &str) -> Result<Vec<ChatMessage>, Self::Error> {
+    async fn search(&self, _query: &str) -> Result<Vec<ChatMessage>, Self::Error> {
         Ok(self.history.iter().cloned().collect())
     }
 

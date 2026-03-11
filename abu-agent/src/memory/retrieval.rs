@@ -10,18 +10,12 @@ pub struct RetrievalMemory<P> {
 }
 
 impl<P: EmbedProvide> RetrievalMemory<P> {
-    pub fn new(embedder: Embedder<P>, top_k: usize) -> Self {
+    pub fn new(provider: P, model: impl Into<String>, top_k: usize) -> Self {
         Self { 
             top_k, 
-            embedder, 
+            embedder: Embedder::new(provider, model), 
             db: VectorDB::new(FlatL2Index::new(), InMemoryStorage::new()) 
         }
-    }
-
-    pub async fn add_messega(&mut self, message: String) -> Result<(), RetrievalMemoryError> {
-        let embedding = self.embedder.embed_text(message.clone()).await?;
-        self.db.add(self.new_id(), embedding, message).await?;
-        Ok(())
     }
 
     fn new_id(&self) -> VectorId {
@@ -33,12 +27,13 @@ impl<P: EmbedProvide> Memory for RetrievalMemory<P> {
     type Error = RetrievalMemoryError;
 
     async fn add(&mut self, user_input: &str, ai_response: &str) -> Result<(), Self::Error> {
-        self.add_messega(format!("User said: {user_input}")).await?;
-        self.add_messega(format!("AI responded: {ai_response}")).await?;
+        let content = format!("User: {}\nAI: {}", user_input, ai_response);
+        let embedding = self.embedder.embed_text(content.clone()).await?;
+        self.db.add(self.new_id(), embedding, content).await?;
         Ok(())
     }
     
-    async fn search(&mut self, query: &str) -> Result<Vec<ChatMessage>, Self::Error> {
+    async fn search(&self, query: &str) -> Result<Vec<ChatMessage>, Self::Error> {
         let query_embedding = self.embedder.embed_text(query).await?;
         let result = self.db.search(&query_embedding, self.top_k).await?;
         let retrieved_docs = result.iter()

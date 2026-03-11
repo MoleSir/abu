@@ -22,12 +22,6 @@ impl<P: ChatProvide> SummarizationMemory<P> {
         }
     }
 
-    pub fn user_message_count(&self) -> usize {
-        self.messages.iter()
-            .filter(|m| m.is_user())
-            .count()
-    }
-
     /// call llm to summary `messages` and reset `messages`
     async fn consolidate_memory(&mut self) -> AgentResult<()> {
         debug!("--- [Memory Consolidation Triggered] ---");
@@ -78,13 +72,13 @@ impl<P: ChatProvide> Memory for SummarizationMemory<P> {
     async fn add(&mut self, user_input: &str, ai_response: &str) -> Result<(), Self::Error> {
         self.messages.push(ChatMessage::user(user_input));
         self.messages.push(ChatMessage::assistant(ai_response, []));
-        if self.user_message_count() >= self.summary_threshold {
+        if self.messages.len() / 2 >= self.summary_threshold {
             self.consolidate_memory().await?;
         }
         Ok(())
     }
 
-    async fn search(&mut self, _query: &str) -> Result<Vec<ChatMessage>, Self::Error> {
+    async fn search(&self, _query: &str) -> Result<Vec<ChatMessage>, Self::Error> {
         Ok(self.messages.clone())
     }
 
