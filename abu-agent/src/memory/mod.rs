@@ -1,11 +1,13 @@
 mod sequential;
 mod slidingwindow;
 mod summary;
+mod retrieval;
 
 use abu_base::chat::ChatMessage;
 pub use sequential::SequentialMemory;
 pub use slidingwindow::SliceWindowMemory;
 pub use summary::SummarizationMemory;
+pub use retrieval::RetrievalMemory;
 
 #[allow(async_fn_in_trait)]
 pub trait Memory : Send + Sync {
