@@ -31,3 +31,4 @@ meval = { workspace = true }
 [dev-dependencies]
 tracing-subscriber = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+anyhow = { workspace = true }

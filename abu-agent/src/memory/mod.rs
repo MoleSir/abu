@@ -15,7 +15,7 @@ pub use augmented::AugmentedMemory;
 
 #[allow(async_fn_in_trait)]
 pub trait Memory : Send + Sync {
-    type Error: std::error::Error + 'static;
+    type Error: std::error::Error + 'static + Send + Sync;
 
     async fn add(&mut self, user_input: &str, ai_response: &str) -> Result<(), Self::Error>;
     async fn search(&self, query: &str) -> Result<Vec<ChatMessage>, Self::Error>;

@@ -1,5 +1,4 @@
-use abu_agent::AgentBuilder;
-use abu_provider::deepseek::DeepSeek;
+use abu_agent::{model::ChatModel, AgentBuilder};
 use tracing::info;
 
 #[tokio::main]
@@ -17,10 +16,9 @@ async fn main() {
 
 async fn result_main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv::from_filename(".env")?;
-    let llm = DeepSeek::from_env().expect("new deepseek");
-    let model = std::env::var("MODEL_ID")?;
-    let mut agent = AgentBuilder::new(llm, model)
-        .with_builin_tools(true)
+    let llm = ChatModel::deepseek(std::env::var("MODEL_ID")?)?;
+    let mut agent = AgentBuilder::new(llm)
+        .with_builtin_tools(true)
         .system_prompt(
 r#"You are a senior software engineer.
 You write clean, idiomatic, production-ready code.

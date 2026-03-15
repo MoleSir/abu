@@ -67,18 +67,18 @@ impl McpManager {
         Ok(self.stdio_servers.last().unwrap())
     }
 
-    pub async fn execute_toolcall(&mut self, name: String, arguments: serde_json::Value) -> AgentResult<ToolCallResult> {
+    pub async fn execute_toolcall(&mut self, name: &str, arguments: serde_json::Value) -> AgentResult<ToolCallResult> {
         for client in self.stdio_servers.iter_mut() {
             if client.has_tool(&name) {
                 let mcp_tool_call = McpToolCall {
-                    name, arguments: Some(arguments)
+                    name: name.to_string(), arguments: Some(arguments)
                 };
                 let mcp_tool_call_result = client.tools_call(mcp_tool_call).await?;
                 let tool_call_result = mcp_tool_call_result_to_tool_call_result(mcp_tool_call_result);
                 return Ok(tool_call_result)
             }
         }
-        Err(ToolError::ToolNotFound(name))?
+        Err(ToolError::ToolNotFound(name.to_string()))?
     }
 
     pub fn has_tool(&self, tool_name: &str) -> bool {

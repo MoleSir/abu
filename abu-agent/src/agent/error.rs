@@ -2,18 +2,24 @@ use abu_base::chat::ChatRequestBuilderError;
 use abu_mcp::McpError;
 use abu_skill::SkillError;
 use abu_tool::ToolError;
+use crate::model::ChatModelError;
 
-// #[derive(Debug, thiserror::Error)]
 #[thiserrorctx::context_error]
 pub enum AgentError {
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
     #[error(transparent)]
+    Chat(#[from] ChatModelError),
+
+    #[error(transparent)]
     Skill(#[from] SkillError),
 
     #[error(transparent)]
-    Memory(Box<dyn std::error::Error>),
+    Memory(Box<dyn std::error::Error + 'static + Send + Sync>),
+
+    #[error(transparent)]
+    Hook(Box<dyn std::error::Error + 'static + Send + Sync>),
 
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),

@@ -41,8 +41,8 @@ impl ToolRegister {
     }
 
     /// Return tool execute error if tool inner error
-    pub async fn execute(&self, name: String, arguments: serde_json::Value) -> ToolResult<ToolCallResult> {
-        let tool = self.get_tool(&name).ok_or_else(|| ToolError::ToolNotFound(name))?;
+    pub async fn execute(&self, name: &str, arguments: serde_json::Value) -> ToolResult<ToolCallResult> {
+        let tool = self.get_tool(name).ok_or_else(|| ToolError::ToolNotFound(name.to_string()))?;
         let value = tool.execute(arguments).await?;
         Ok(value)
     }

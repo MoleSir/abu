@@ -13,7 +13,7 @@ dotenv::from_filename(".env")?;
 let llm = DeepSeek::from_env().expect("new deepseek");
 let model = std::env::var("MODEL_ID")?;
 let mut agent = AgentBuilder::new(llm, model)
-    .with_builin_tools(true)
+    .with_builtin_tools(true)
     .system_prompt(
 r#"You are a senior software engineer.
 You write clean, idiomatic, production-ready code.
@@ -33,7 +33,7 @@ dotenv::from_filename(".env")?;
 let llm = DeepSeek::from_env().expect("new deepseek");
 let model = std::env::var("MODEL_ID")?;
 let mut agent = AgentBuilder::new(llm, model)
-    .with_builin_tools(true)
+    .with_builtin_tools(true)
     .system_prompt("You are an autonomous task-solving agent.")
     .with_mcpserver("python3", ["./mcp/weather.py"])
     .with_mcpserver("python3", ["./mcp/username.py"])

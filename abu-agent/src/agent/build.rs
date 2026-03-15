@@ -1,23 +1,30 @@
 use std::path::PathBuf;
 use abu_provider::{deepseek::DeepSeek, ChatProvide};
 use abu_tool::Tool;
-use crate::{context::ContextBuilder, kit::tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWritor}}, memory::{Memory, SequentialMemory}, AgentResult};
+use crate::{
+    context::ContextBuilder, 
+    hook::{Hook, HookWrap}, 
+    kit::tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWritor}}, 
+    memory::{Memory, SequentialMemory}, 
+    model::{ChatConfig, ChatModel}, 
+    AgentResult
+};
 use super::{Agent, AgentConfig, AgentKit};
 
 const DEFAULT_SYSTEM_PROMPT: &str = "You are an agent.";
 
-pub struct AgentBuilder<C: ChatProvide = DeepSeek, M: Memory = SequentialMemory> {
-    pub llm: C,
-    pub model: String,
+pub struct AgentBuilder<P: ChatProvide = DeepSeek, M: Memory = SequentialMemory> {
+    pub llm: ChatModel<P>,
     pub config: AgentConfig,
     pub memory: M,
     pub system_prompt: String,
     pub with_skills: Option<PathBuf>,
-    pub with_builin_tools: bool,
+    pub with_builtin_tools: bool,
     pub with_subagent: bool,
     pub tools: Vec<Box<dyn Tool>>,
     pub mcpservers: Vec<(String, Vec<String>)>,
     pub mcpconfig_path: Option<PathBuf>,
+    pub hooks: Vec<Box<dyn HookWrap>>,
 }
 
 impl Default for AgentConfig {
@@ -31,12 +38,10 @@ impl Default for AgentConfig {
 
 impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
     pub async fn build(mut self) -> AgentResult<Agent<C, M>> {
-        // let mut system_prompt = format!("{}\nOnce you consider the work complete or do task to do, call the terminate method.", self.system_prompt);
         let mut kit = AgentKit::new();
-        // kit.add_tool(Terminator::new());
 
         // tool
-        if self.with_builin_tools {
+        if self.with_builtin_tools {
             kit.add_tool(Bash::new());
             kit.add_tool(Calculator::new());
             kit.add_tool(FileCreator::new());
@@ -66,32 +71,35 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
         // context builder
         let context_builder = ContextBuilder::new(self.system_prompt);
 
+        self.llm.bind_tool_defines(kit.tool_definitions());
+        self.llm.set_config(ChatConfig { temperature: Some(self.config.temperature) });
+
         Ok(Agent {
             config: self.config,
             llm: self.llm,
-            model: self.model,
             memory: self.memory,
             kit,
-            context_builder
+            context_builder,
+            hooks: self.hooks,
         })
 
     }
 }
 
-impl<C: ChatProvide> AgentBuilder<C> {
-    pub fn new(llm: C, model: impl Into<String>) -> Self {
+impl<P: ChatProvide> AgentBuilder<P> {
+    pub fn new(llm: ChatModel<P>) -> Self {
         Self {
             llm,
-            model: model.into(),
             config: AgentConfig::default(),
             memory: SequentialMemory::default(),
             system_prompt: DEFAULT_SYSTEM_PROMPT.to_string(),
             with_skills: None,
-            with_builin_tools: true,
+            with_builtin_tools: true,
             with_subagent: false,
             tools: vec![],
             mcpservers: vec![],
             mcpconfig_path: None,
+            hooks: vec![],
         }
     }
 }
@@ -111,37 +119,32 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
         AgentBuilder {
             memory,
             llm: self.llm,
-            model: self.model,
             config: self.config,
             system_prompt: self.system_prompt,
             with_skills: self.with_skills,
-            with_builin_tools: self.with_builin_tools,
+            with_builtin_tools: self.with_builtin_tools,
             with_subagent: self.with_subagent,
             tools: self.tools,
             mcpservers: self.mcpservers,
-            mcpconfig_path: self.mcpconfig_path
+            mcpconfig_path: self.mcpconfig_path,
+            hooks: self.hooks,
         }
     }
 
-    pub fn llm<NC: ChatProvide>(self, llm: NC) -> AgentBuilder<NC, M> {
+    pub fn llm<NC: ChatProvide>(self, llm: ChatModel<NC>) -> AgentBuilder<NC, M> {
         AgentBuilder {
             memory: self.memory,
             llm,
-            model: self.model,
             config: self.config,
             system_prompt: self.system_prompt,
             with_skills: self.with_skills,
-            with_builin_tools: self.with_builin_tools,
+            with_builtin_tools: self.with_builtin_tools,
             with_subagent: self.with_subagent,
             tools: self.tools,
             mcpservers: self.mcpservers,
-            mcpconfig_path: self.mcpconfig_path
+            mcpconfig_path: self.mcpconfig_path,
+            hooks: self.hooks,
         }
-    }
-
-    pub fn model(mut self, model: impl Into<String>) -> Self {
-        self.model = model.into();
-        self
     }
 
     pub fn system_prompt(mut self, system_prompt: impl Into<String>) -> Self {
@@ -154,13 +157,18 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
         self
     }
 
-    pub fn with_builin_tools(mut self, enabled: bool) -> Self {
-        self.with_builin_tools = enabled;
+    pub fn with_builtin_tools(mut self, enabled: bool) -> Self {
+        self.with_builtin_tools = enabled;
         self
     }
 
     pub fn with_tool(mut self, tool: impl Tool + 'static) -> Self {
         self.tools.push(Box::new(tool));
+        self
+    }
+
+    pub fn with_hook(mut self, hook: impl Hook + 'static) -> Self {
+        self.hooks.push(Box::new(hook));
         self
     }
 
@@ -189,18 +197,16 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
 
 #[cfg(test)]
 mod test {
-    use abu_provider::deepseek::DeepSeek;
-
+    use crate::model::ChatModel;
     use super::AgentBuilder;
 
     #[tokio::test]
     async fn test_build() {
         dotenv::from_filename(".env").unwrap();
-        let deepseek = DeepSeek::from_env().expect("new deepseek");
-        let model = std::env::var("MODEL_ID").unwrap();
-        AgentBuilder::new(deepseek, model)
+        let model = ChatModel::deepseek("deepseek-chat").unwrap();
+        AgentBuilder::new(model)
             .system_prompt("hihi")
-            .with_builin_tools(true)
+            .with_builtin_tools(true)
             .build()
             .await
             .expect("build llm");

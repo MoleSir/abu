@@ -1,6 +1,5 @@
 pub mod tools;
 pub mod mcp;
-pub mod sandbox;
 use std::{ffi::OsStr, path::{Path, PathBuf}, sync::Arc};
 use abu_base::chat::ToolDefinition;
 use abu_mcp::McpTool;
@@ -76,7 +75,7 @@ impl AgentKit {
         Ok(())
     }
 
-    pub async fn execute_tool(&mut self, name: String, arguments: serde_json::Value) -> AgentResult<ToolCallResult> {
+    pub async fn execute_tool(&mut self, name: &str, arguments: serde_json::Value) -> AgentResult<ToolCallResult> {
         if self.tools.has_tool(&name) {
             let result = self.tools.execute(name, arguments).await?;
             Ok(result)
@@ -84,7 +83,7 @@ impl AgentKit {
             let result = self.mcp_manager.execute_toolcall(name, arguments).await?;
             Ok(result)
         } else {
-            Err(ToolError::ToolNotFound(name))?
+            Err(ToolError::ToolNotFound(name.to_string()))?
         }
     }
 
