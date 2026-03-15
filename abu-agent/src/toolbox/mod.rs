@@ -1,28 +1,24 @@
 pub mod tools;
 pub mod mcp;
-use std::{ffi::OsStr, path::{Path, PathBuf}, sync::Arc};
+use std::{ffi::OsStr, path::Path};
 use abu_base::chat::ToolDefinition;
 use abu_mcp::McpTool;
-use abu_skill::SkillLoader;
 use abu_tool::{Tool, ToolCallResult, ToolError, ToolRegister};
 use mcp::McpManager;
-use tools::skill::SkillTool;
 use tracing::debug;
 
 use crate::AgentResult;
 
-pub struct AgentKit {
+pub struct ToolBox {
     tools: ToolRegister,
     mcp_manager: McpManager,
-    skill_loader: Option<Arc<SkillLoader>>,
     tool_definitions: Vec<ToolDefinition>,
 }
 
-impl AgentKit {
+impl ToolBox {
     pub fn new() -> Self {
         Self {
             tools: ToolRegister::new(),
-            skill_loader: None,
             mcp_manager: McpManager::new(),
             tool_definitions: vec![],
         }
@@ -31,23 +27,6 @@ impl AgentKit {
     pub async fn load_mcpconfig(&mut self, path: impl AsRef<Path>) -> AgentResult<()> {
         self.mcp_manager = McpManager::load_config(path).await?; 
         Ok(())
-    }
-
-    pub fn load_skill(&mut self, skill_dir: impl Into<PathBuf>) -> AgentResult<()> {
-        let skill_loader = Arc::new(SkillLoader::load(skill_dir)?);
-        // first load, add skill tool
-        if self.skill_loader.is_none() {
-            self.add_tool(SkillTool::new(skill_loader.clone()));
-        }
-        self.skill_loader = Some(skill_loader);
-        Ok(())
-    }
-
-    pub fn attach_system_prompt(&self, origin: &str) -> String {
-        match &self.skill_loader {
-            Some(skill_loader) => format!("{}\n\n{}", origin, skill_loader.get_descriptions()),
-            None => origin.to_string(),
-        }
     }
 
     pub fn add_tool<T: Tool + 'static>(&mut self, tool: T) {

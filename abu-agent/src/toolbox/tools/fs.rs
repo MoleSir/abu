@@ -10,7 +10,7 @@ pub fn create_file(filepath: &str) -> std::io::Result<()> {
 }
 
 #[abu_macros::tool(
-    struct_name = FileWritor,
+    struct_name = FileWriter,
     description = 
 r#"Write content to file.
 If the file already exists, the original content will be overwritten directly."#,

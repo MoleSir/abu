@@ -1,7 +1,7 @@
 use abu_base::chat::{AssistantMessage, ChatMessage, ToolCall, ToolDefinition};
 use abu_provider::ChatProvide;
 use abu_tool::ToolCallResult;
-use crate::{hook::HookEvent, AgentError};
+use crate::AgentError;
 use crate::memory::Memory;
 use super::{Agent, AgentResult};
 
@@ -10,7 +10,7 @@ use tracing::{debug, info, warn};
 
 impl<C: ChatProvide, M: Memory> Agent<C, M> {
     pub fn tool_list(&self) -> &[ToolDefinition] {
-        self.kit.tool_definitions()
+        self.toolbox.tool_definitions()
     }
 
     pub fn system_prompt(&self) -> &str {
@@ -19,23 +19,19 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
 
     pub async fn run(&mut self, query: &str) -> AgentResult<String> {
         info!(query = %query, "🤖 Agent started with user query");
-        for hook in &self.hooks {
-            hook.on_event(HookEvent::agent_start(query)).await.context("agent start hook")?;
-        }
+        self.hooks.on_agent_start(query).await.context("agent start hook")?;
         
-        let memorys = self.search_memory(query).await.context("search memory")?;
-        let mut messages = self.build_context(query, memorys).await.context("build context")?;
+        let memories = self.search_memory(query).await.context("search memory")?;
+        let mut messages = self.build_context(query, memories).await.context("build context")?;
 
         // agent loop
         let mut final_result = None; 
         for step in 0..self.config.max_iteration {
             debug!(step, "🔄 Agent step begin");
-            for hook in self.hooks.iter() {
-                let event = HookEvent::step_start(step);
-                hook.on_event(event).await.with_context(|| format!("step {step} start"))?;
-            }
+            self.hooks.on_step_start(step).await.with_context(|| format!("step {step} start"))?;
 
-            let ai_message = self.llm_chat(step, &messages, true).await.with_context(|| format!("chat with llm in step {}", step))?;
+            let mut ai_message = self.llm_chat(step, &messages, true).await.with_context(|| format!("chat with llm in step {}", step))?;
+            
             messages.push(ai_message.clone().into());
 
             info!(step, role = "AI", content = ai_message.content, "🗣️ LLM Text Response");
@@ -47,7 +43,7 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
             }
 
             // tool calls
-            for tool_call in ai_message.tool_calls.iter() {
+            for tool_call in ai_message.tool_calls.iter_mut() {
                 info!(step, tool = %tool_call.name, id = %tool_call.id, args = %tool_call.arguments, "🚀 Executing tool");
                 let result = self.execute_tool(step, tool_call).await.context("execute tool")?;
 
@@ -64,23 +60,18 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
             }
 
             debug!(step, "🔄 Agent step end");
-            for hook in self.hooks.iter() {
-                let event = HookEvent::step_end(step, &ai_message);
-                hook.on_event(event).await.with_context(|| format!("step {step} start"))?;
-            }
+            self.hooks.on_step_end(step, &ai_message).await.with_context(|| format!("step {step} start"))?;
         }
 
         match final_result {
             Some(final_result) => {
-                info!(output = final_result, "🛑 Finsh task with final output");
+                info!(output = final_result, "🛑 Finish task with final output");
                 self.add_memory(query, &final_result).await?;
                 Ok(final_result)
             }
             None => {
                 warn!("Agent reached max steps without termination");
-                for hook in self.hooks.iter() {
-                    hook.on_event(HookEvent::AgentMaxIteration).await.context("max iter hook")?;
-                }
+                self.hooks.on_agent_max_iteration().await.context("max iter hook")?;
                 Ok("Task do not finish yet".to_string())
             }
         }
@@ -89,8 +80,8 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
     pub async fn chat(&mut self, query: &str) -> AgentResult<String> {
         info!(query = %query, "🤖 Agent started with user query");
 
-        let memorys = self.search_memory(query).await.context("search memory")?;
-        let messages = self.build_context(query, memorys).await.context("build context")?;
+        let memories = self.search_memory(query).await.context("search memory")?;
+        let messages = self.build_context(query, memories).await.context("build context")?;
         
         let ai_message = self.llm_chat(0, &messages, false).await.context("chat with llm")?;
         info!(role = "AI", content = ai_message.content, "🗣️ LLM Text Response");
@@ -100,23 +91,24 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
         Ok(ai_message.content)
     }
 
-    async fn execute_tool(&mut self, step: usize, tool_call: &ToolCall) -> AgentResult<ToolCallResult> {
-        for hook in &self.hooks {
-            hook.on_event(HookEvent::tool_start(step, &tool_call)).await.context("tool start hook")?;
-        }
+    async fn execute_tool(&mut self, step: usize, tool_call: &mut ToolCall) -> AgentResult<ToolCallResult> {
+        self.middlewares
+            .intercept_tool_call(tool_call)
+            .await.context("intercept tool call")?;
+        
+        self.hooks.on_tool_start(step, tool_call).await.context("tool start hook")?;
 
         let arguments = serde_json::from_str(&tool_call.arguments)?;
-        let result = self.kit.execute_tool(&tool_call.name, arguments).await.context("execute tool")?;
+        let mut result = self.toolbox.execute_tool(&tool_call.name, arguments).await.context("execute tool")?;
+
+        self.middlewares
+            .intercept_tool_result(&tool_call.name, &mut result)
+            .await.context("intercept tool result")?;
         
-        for hook in &self.hooks {
-            hook.on_event(HookEvent::tool_end(step, &result)).await.context("tool end hook")?;
-        }
+        self.hooks.on_tool_end(step, &result).await.context("tool end hook")?;
 
         if result.is_error {
-            for hook in &self.hooks {
-                let event = HookEvent::tool_error(step, &result.context);
-                hook.on_event(event).await.context("tool error hook")?;
-            }
+            self.hooks.on_tool_error(step, &result.context).await.context("tool error hook")?;
         }
         
         Ok(result)
@@ -130,54 +122,43 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
             .map_err(|e| AgentError::Memory(Box::new(e)))
             .context("add new memory")?;
 
-        for hook in self.hooks.iter() {
-            let event = HookEvent::memory_add(user_input, ai_response);
-            hook.on_event(event).await.context("memory add hook")?;
-        }
+        self.hooks.on_memory_add(user_input, ai_response).await.context("memory add hook")?;
 
         Ok(())
     }
 
     async fn search_memory(&mut self, query: &str) -> AgentResult<Vec<ChatMessage>> {
         debug!(query = query, "search memory");
-        let memorys: Vec<ChatMessage> = self.memory.search(query).await
+        let memories: Vec<ChatMessage> = self.memory.search(query).await
             .map_err(|e| AgentError::Memory(Box::new(e)))
             .context("search memory")?;
-        for hook in self.hooks.iter() {
-            let event = HookEvent::memory_search(query, &memorys);
-            hook.on_event(event).await.context("memory search hook")?;
-        }
+        self.hooks.on_memory_search(query, &memories).await.context("memory search hook")?;
 
-        Ok(memorys)
+        Ok(memories)
     }
 
-    async fn build_context(&mut self, query: &str, memorys: Vec<ChatMessage>) -> AgentResult<Vec<ChatMessage>> {
+    async fn build_context(&mut self, query: &str, memories: Vec<ChatMessage>) -> AgentResult<Vec<ChatMessage>> {
         debug!("build context");
-        let messages: Vec<ChatMessage> = self.context_builder.build(query, memorys);
-        for hook in self.hooks.iter() {
-            let event = HookEvent::context_build(query, &messages);
-            hook.on_event(event).await.context("context build hook")?;
-        }
+        let messages: Vec<ChatMessage> = self.context_builder.build(query, memories);
+        self.hooks.on_context_build(query, &messages).await.context("context build hook")?;
 
         Ok(messages)
     }
 
     async fn llm_chat(&mut self, step: usize, messages: &[ChatMessage], with_tool: bool) -> AgentResult<AssistantMessage> {
-        for hook in &self.hooks {
-            let event = HookEvent::llm_start(step, messages);
-            hook.on_event(event).await.context("llm start hook")?;
-        }
+        self.hooks.on_llm_start(step, messages).await.context("llm start hook")?;
 
-        let ai_message = if with_tool {
+        let mut ai_message = if with_tool {
             self.llm.chat(messages).await?.message
         } else {
             self.llm.chat_no_tools(messages).await?.message
         };
 
-        for hook in &self.hooks {
-            let event = HookEvent::llm_end(step, &ai_message);
-            hook.on_event(event).await.context("llm end hook")?;
-        }
+        self.middlewares
+            .intercept_llm_out(&mut ai_message).await
+            .context("intercept llm out")?;
+        
+        self.hooks.on_llm_end(step, &ai_message).await.context("llm end hook")?;
 
         Ok(ai_message)
     }

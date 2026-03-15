@@ -1,4 +1,4 @@
-use abu_agent::{model::ChatModel, AgentBuilder};
+use abu_agent::{hook::ConsoleLoggerHook, model::ChatModel, AgentBuilder};
 use tracing::{debug, info, level_filters::LevelFilter};
 
 #[tokio::main]
@@ -24,6 +24,7 @@ async fn result_main() -> anyhow::Result<()> {
         .system_prompt("You are an autonomous task-solving agent.")
         .with_mcpserver("python3", ["./mcp/weather.py"])
         .with_mcpserver("python3", ["./mcp/username.py"])
+        .with_hook(ConsoleLoggerHook::new())
         .build()
         .await?;
 

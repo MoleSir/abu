@@ -1,50 +1,44 @@
+use std::sync::Arc;
 use abu_base::chat::ChatMessage;
+use abu_skill::SkillLoader;
 
 pub struct ContextBuilder {
     pub system_prompt: String,   
+    pub skill_loader: Option<Arc<SkillLoader>>,
 }
 
 impl ContextBuilder {
     pub fn new(system_prompt: impl Into<String>) -> Self {
-        Self { system_prompt: system_prompt.into() }
+        Self { 
+            system_prompt: system_prompt.into(),
+            skill_loader: None,
+        }
     }
     
-    pub fn build(&self, query: &str, memorys: Vec<ChatMessage>) -> Vec<ChatMessage> {
-        let mut messages = vec![ChatMessage::system(self.system_prompt.clone())];
-        messages.extend(memorys);
+    pub fn with_skill(&mut self, skill: Arc<SkillLoader>) {
+        self.skill_loader = Some(skill);
+    }
+
+    pub fn build(&self, query: &str, memories: Vec<ChatMessage>) -> Vec<ChatMessage> {
+        let system_prompt = self.build_system_prompt();
+        let mut messages = vec![ChatMessage::system(system_prompt)];
+        messages.extend(memories);
         messages.push(ChatMessage::user(query));
         messages
     }
+
+    fn build_system_prompt(&self) -> String {
+        /*
+        TODO:
+            用 占位符 替代硬编码处理时间、路径等环境上下文。
+            用 push_str 优化字符串拼接。
+            加一道 Memory 长度/Token 保护机制。
+        */
+        let mut contents = vec![self.system_prompt.clone()];
+        if let Some(skill_loader) = self.skill_loader.as_ref() {
+            contents.push(skill_loader.get_descriptions());
+        }
+        contents.join("\n\n")
+    }
 }
 
-// pub struct ContextBuilder {
-//     pub system_prompt: String,   
-//     pub skill_loader: Option<SkillLoader>,
-// }
-
-// impl ContextBuilder {
-//     pub fn new<S, P>(system_prompt: S, skill_path: Option<P>) -> AgentResult<Self> 
-//     where 
-//         S: Into<String>,
-//         P: Into<PathBuf>
-//     {
-//         let mut system_prompt: String = system_prompt.into();
-//         let skill_loader = match skill_path {
-//             Some(path) => {
-//                 let skill_loader = SkillLoader::load(path).context("load skill")?;
-//                 system_prompt = format!("{}\n\n{}", system_prompt, skill_loader.get_descriptions());
-//                 Some(skill_loader)
-//             }
-//             None => None,
-//         };
-    
-//         Ok(Self { system_prompt, skill_loader })
-//     }
-
-//     pub fn build(&self, query: &str, memorys: Vec<ChatMessage>) -> Vec<ChatMessage> {
-//         let mut messages = vec![ChatMessage::system(self.system_prompt.clone())];
-//         messages.extend(memorys);
-//         messages.push(ChatMessage::user(query));
-//         messages
-//     }
-// }

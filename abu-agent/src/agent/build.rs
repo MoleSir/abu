@@ -1,15 +1,11 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 use abu_provider::{deepseek::DeepSeek, ChatProvide};
+use abu_skill::SkillLoader;
 use abu_tool::Tool;
 use crate::{
-    context::ContextBuilder, 
-    hook::{Hook, HookWrap}, 
-    kit::tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWritor}}, 
-    memory::{Memory, SequentialMemory}, 
-    model::{ChatConfig, ChatModel}, 
-    AgentResult
+    context::ContextBuilder, hook::{Hook, HookManager}, memory::{Memory, SequentialMemory}, middleware::{LlmOutMiddleware, Middleware, MiddlewareManager, ToolCallMiddleware, ToolResultMiddleware}, model::{ChatConfig, ChatModel}, toolbox::tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWriter}, skill::SkillTool}, AgentResult
 };
-use super::{Agent, AgentConfig, AgentKit};
+use super::{Agent, AgentConfig, ToolBox};
 
 const DEFAULT_SYSTEM_PROMPT: &str = "You are an agent.";
 
@@ -24,7 +20,8 @@ pub struct AgentBuilder<P: ChatProvide = DeepSeek, M: Memory = SequentialMemory>
     pub tools: Vec<Box<dyn Tool>>,
     pub mcpservers: Vec<(String, Vec<String>)>,
     pub mcpconfig_path: Option<PathBuf>,
-    pub hooks: Vec<Box<dyn HookWrap>>,
+    pub hooks: HookManager,
+    pub middlewares: MiddlewareManager,
 }
 
 impl Default for AgentConfig {
@@ -38,49 +35,49 @@ impl Default for AgentConfig {
 
 impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
     pub async fn build(mut self) -> AgentResult<Agent<C, M>> {
-        let mut kit = AgentKit::new();
+        let mut toolbox = ToolBox::new();
+        let mut context_builder = ContextBuilder::new(self.system_prompt);
 
         // tool
         if self.with_builtin_tools {
-            kit.add_tool(Bash::new());
-            kit.add_tool(Calculator::new());
-            kit.add_tool(FileCreator::new());
-            kit.add_tool(FileWritor::new());
-            kit.add_tool(FileReader::new());
+            toolbox.add_tool(Bash::new());
+            toolbox.add_tool(Calculator::new());
+            toolbox.add_tool(FileCreator::new());
+            toolbox.add_tool(FileWriter::new());
+            toolbox.add_tool(FileReader::new());
         }
-
         for tool in self.tools {
-            kit.add_tool_box(tool);
+            toolbox.add_tool_box(tool);
         }
 
         // mcp
         if let Some(path) = self.mcpconfig_path {
-            kit.load_mcpconfig(&path).await?;
+            toolbox.load_mcpconfig(&path).await?;
         }
-
         for (cmd, args) in self.mcpservers {
-            kit.add_mcp_server(&cmd, &args).await?;
+            toolbox.add_mcp_server(&cmd, &args).await?;
         }
 
         // skill
-        if let Some(skill_path) = self.with_skills {
-            kit.load_skill(skill_path)?;
-            self.system_prompt = kit.attach_system_prompt(&self.system_prompt);   
+        if let Some(skill_dir) = self.with_skills {
+            let skill_loader = Arc::new(SkillLoader::load(skill_dir)?);
+            context_builder.with_skill(skill_loader.clone());
+            toolbox.add_tool(SkillTool::new(skill_loader));
+            
         }
 
-        // context builder
-        let context_builder = ContextBuilder::new(self.system_prompt);
-
-        self.llm.bind_tool_defines(kit.tool_definitions());
+        // llm init
+        self.llm.bind_tool_defines(toolbox.tool_definitions());
         self.llm.set_config(ChatConfig { temperature: Some(self.config.temperature) });
 
         Ok(Agent {
             config: self.config,
             llm: self.llm,
             memory: self.memory,
-            kit,
+            toolbox,
             context_builder,
             hooks: self.hooks,
+            middlewares: self.middlewares,
         })
 
     }
@@ -99,7 +96,8 @@ impl<P: ChatProvide> AgentBuilder<P> {
             tools: vec![],
             mcpservers: vec![],
             mcpconfig_path: None,
-            hooks: vec![],
+            hooks: HookManager::new(),
+            middlewares: MiddlewareManager::new(),
         }
     }
 }
@@ -128,6 +126,7 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
             mcpservers: self.mcpservers,
             mcpconfig_path: self.mcpconfig_path,
             hooks: self.hooks,
+            middlewares: self.middlewares,
         }
     }
 
@@ -144,6 +143,7 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
             mcpservers: self.mcpservers,
             mcpconfig_path: self.mcpconfig_path,
             hooks: self.hooks,
+            middlewares: self.middlewares,
         }
     }
 
@@ -168,7 +168,27 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
     }
 
     pub fn with_hook(mut self, hook: impl Hook + 'static) -> Self {
-        self.hooks.push(Box::new(hook));
+        self.hooks.add_hook(hook);
+        self
+    }
+
+    pub fn with_middleware(mut self, middleware: impl Into<Middleware>) -> Self {
+        self.middlewares.add_middleware(middleware);
+        self
+    }
+
+    pub fn with_llm_out_middleware<LM: LlmOutMiddleware + 'static>(mut self, middleware: LM) -> Self {
+        self.middlewares.add_llm_out(middleware);
+        self
+    }
+
+    pub fn with_tool_call_middleware<TM: ToolCallMiddleware + 'static>(mut self, middleware: TM) -> Self {
+        self.middlewares.add_tool_call(middleware);
+        self
+    }
+
+    pub fn with_tool_result_middleware<TM: ToolResultMiddleware + 'static>(mut self, middleware: TM) -> Self {
+        self.middlewares.add_tool_result(middleware);
         self
     }
 
@@ -184,11 +204,11 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
         self
     }
 
-    pub fn with_mcpserver<'a>(mut self, cmd: &str, args: impl IntoIterator<Item = &'a str>) -> Self {
+    pub fn with_mcpserver<S1: Into<String>, S2: Into<String>, I: IntoIterator<Item = S2>>(mut self, cmd: S1, args: I) -> Self {
         let args = args.into_iter().collect::<Vec<_>>();
-        let cmd = cmd.to_string();
+        let cmd = cmd.into();
         let args = args.into_iter()
-            .map(|arg| arg.to_string())
+            .map(|arg| arg.into())
             .collect();
         self.mcpservers.push((cmd, args));
         self

@@ -6,10 +6,11 @@ mod lloop;
 
 use abu_provider::ChatProvide;
 use crate::context::ContextBuilder;
-use crate::hook::HookWrap;
+use crate::hook::HookManager;
 use crate::memory::Memory;
+use crate::middleware::MiddlewareManager;
 use crate::model::ChatModel;
-use crate::kit::AgentKit;
+use crate::toolbox::ToolBox;
 
 #[derive(Clone)]
 pub struct AgentConfig {
@@ -22,6 +23,7 @@ pub struct Agent<P: ChatProvide, M: Memory> {
     pub llm: ChatModel<P>,
     pub memory: M,
     pub context_builder: ContextBuilder,
-    pub kit: AgentKit,
-    pub hooks: Vec<Box<dyn HookWrap>>,
+    pub toolbox: ToolBox,
+    pub hooks: HookManager,
+    pub middlewares: MiddlewareManager,
 }

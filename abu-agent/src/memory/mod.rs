@@ -3,6 +3,7 @@ mod slidingwindow;
 mod summary;
 mod retrieval;
 mod augmented;
+mod hierarchical;
 #[cfg(test)]
 mod test;
 
@@ -12,6 +13,7 @@ pub use slidingwindow::SliceWindowMemory;
 pub use summary::SummarizationMemory;
 pub use retrieval::RetrievalMemory;
 pub use augmented::AugmentedMemory;
+pub use hierarchical::HierarchicalMemory;
 
 #[allow(async_fn_in_trait)]
 pub trait Memory : Send + Sync {
