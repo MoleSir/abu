@@ -3,3 +3,4 @@ Cargo.lock
 temp
 .env
 env
+cargo_push.sh

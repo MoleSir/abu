@@ -2,6 +2,13 @@
 
 Agent development library, featuring a basic Agent Loop, multiple memory strategies, and support for MCP, native Tools, and Skills within an Agent kit.
 
+- Model
+- Memory
+- Hook
+- Middleware
+- Mcp
+- Function Calling
+- Skills
 
 
 ## Examples

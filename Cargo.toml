@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    # "abu-api", 
     "abu-base",
     "abu-provider",
     "abu-tool", 
@@ -8,13 +7,12 @@ members = [
     "abu-skill",
     "abu-rag", 
     "abu-agent", 
-
     "abu-macros", 
 ]
 
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 repository = "https://github.com/MoleSir/abu.git"
 description = "llm dev kit"
@@ -23,16 +21,14 @@ license = "MIT"
 
 
 [workspace.dependencies]
-# abu-api = { path = "./abu-api", package = "abu-api", version = "0.1.0" }
-abu-base = { path = "./abu-base", package = "abu-base", version = "0.1.0" }
-abu-provider = { path = "./abu-provider", package = "abu-provider", version = "0.1.0" }
-abu-tool = { path = "./abu-tool", package = "abu-tool", version = "0.1.0" }
-abu-mcp = { path = "./abu-mcp", package = "abu-mcp", version = "0.1.0" }
-abu-skill = { path = "./abu-skill", package = "abu-skill", version = "0.1.0" }
-abu-rag = { path = "./abu-rag", package = "abu-rag", version = "0.1.0" }
-abu-agent = { path = "./abu-agent", package = "abu-agent", version = "0.1.0" }
-
-abu-macros = { path = "./abu-macros", package = "abu-macros", version = "0.1.0" }
+abu-base = { path = "./abu-base", package = "abu-base", version = "0.2.0" }
+abu-provider = { path = "./abu-provider", package = "abu-provider", version = "0.2.0" }
+abu-tool = { path = "./abu-tool", package = "abu-tool", version = "0.2.0" }
+abu-mcp = { path = "./abu-mcp", package = "abu-mcp", version = "0.2.0" }
+abu-skill = { path = "./abu-skill", package = "abu-skill", version = "0.2.0" }
+abu-rag = { path = "./abu-rag", package = "abu-rag", version = "0.2.0" }
+abu-agent = { path = "./abu-agent", package = "abu-agent", version = "0.2.0" }
+abu-macros = { path = "./abu-macros", package = "abu-macros", version = "0.2.0" }
 
 thiserror = "2.0"
 thiserrorctx = "1.0"

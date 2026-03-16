@@ -14,7 +14,7 @@ Abu is a llm development library, created purely for personal learning.
 - [abu-mcp](./abu-mcp/): MCP protocol implementation, including an optional fastmcp module, designed similarly to Python’s fastmcp API.
 - [abu-skill](./abu-skill/): Skill loading and management.
 - [abu-rag](./abu-rag/): Document loading, splitting, embedding, and simple vector database operations.
-- [abu-agent](./abu-agent/): Agent development library, featuring a basic Agent Loop, multiple memory strategies, and support for MCP, native Tools, and Skills within an Agent kit.
+- [abu-agent](./abu-agent/): Agent development library, featuring a basic Agent Loop(with Hook and Middleware), multiple memory strategies, and support for MCP, native Tools, and Skills within an Agent kit.
 
 
 

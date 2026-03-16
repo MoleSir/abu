@@ -1,14 +1,14 @@
-use abu_base::chat::{ChatMessage, ChatRequestBuilder};
-use abu_provider::{deepseek::DeepSeek, openai::OpenAi, ChatProvide};
+use abu_base::chat::ChatMessage;
+use abu_provider::{deepseek::DeepSeek, openai::OpenAi};
 use tracing::{debug, info, level_filters::LevelFilter};
-use crate::memory::{RetrievalMemory, SliceWindowMemory, SummarizationMemory};
+use crate::{memory::{RetrievalMemory, SliceWindowMemory, SummarizationMemory}, model::ChatModel};
 use super::{Memory, SequentialMemory};
 
-fn load_chat() -> (DeepSeek, String) {
+fn load_chat() -> ChatModel<DeepSeek> {
     dotenv::dotenv().unwrap();
-    let deepseek = DeepSeek::from_env().expect("ds");
     let model = std::env::var("CHAT_MODEL").unwrap();
-    (deepseek, model)
+    let deepseek = ChatModel::deepseek(model).unwrap();
+    deepseek
 }
 
 fn load_embed() -> (OpenAi, String) {
@@ -20,16 +20,15 @@ fn load_embed() -> (OpenAi, String) {
 
 struct AiAgent<M> {
     pub memory: M,
-    pub deepseek: DeepSeek,
-    pub model: String,
+    pub deepseek: ChatModel<DeepSeek>,
     pub system_prompt: String,
 }
 
 impl<M: Memory> AiAgent<M> {
     fn new(memory: M, system_prompt: impl Into<String>) -> Self {
         dotenv::dotenv().unwrap();
-        let (deepseek, model) = load_chat();
-        Self { memory, deepseek, model, system_prompt: system_prompt.into() }
+        let deepseek = load_chat();
+        Self { memory, deepseek, system_prompt: system_prompt.into() }
     }
 
     async fn chat(&mut self, user_input: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -44,11 +43,7 @@ impl<M: Memory> AiAgent<M> {
         messages.extend(context);
         messages.push(ChatMessage::user(user_input));
 
-        let request = ChatRequestBuilder::default()
-            .model(&self.model)
-            .messages(messages)
-            .build()?;
-        let ai_response = self.deepseek.chat(&request).await?.message.content;
+        let ai_response = self.deepseek.chat(messages).await?.message.content;
 
         info!("Agent > {ai_response}");
         self.memory.add(user_input, &ai_response).await?;
@@ -104,10 +99,9 @@ async fn test_sliding_window_2() {
 
 #[tokio::test]
 async fn test_sliding_summary() {
-    let (deepseek, model) = load_chat();
-    init_tracing(LevelFilter::DEBUG);
+    let deepseek = load_chat();
 
-    let memory = SummarizationMemory::new(deepseek, model, 4);
+    let memory = SummarizationMemory::new(deepseek, 4);
     let mut agent = AiAgent::new(memory, "You are a helpful AI assistant.");
 
     agent.chat("I'm starting a new company called 'Innovatech'. Our focus is on sustainable energy.").await.unwrap();

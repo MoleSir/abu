@@ -1,22 +1,20 @@
-use abu_base::chat::{ChatMessage, ChatRequestBuilder};
+use abu_base::chat::ChatMessage;
 use abu_provider::ChatProvide;
 use tracing::debug;
-use crate::{AgentCtxError, AgentError, AgentResult};
+use crate::{model::ChatModel, AgentCtxError, AgentResult};
 
 use super::Memory;
 
 pub struct SummarizationMemory<P> {
-    llm: P,
-    model: String,
+    llm: ChatModel<P>,
     messages: Vec<ChatMessage>,
     summary_threshold: usize,
 }
 
 impl<P: ChatProvide> SummarizationMemory<P> {
-    pub fn new(llm: P, model: impl Into<String>, summary_threshold: usize) -> Self {
+    pub fn new(llm: ChatModel<P>, summary_threshold: usize) -> Self {
         Self { 
             llm,
-            model: model.into(),
             messages: vec![], 
             summary_threshold,
         }
@@ -43,15 +41,7 @@ impl<P: ChatProvide> SummarizationMemory<P> {
             ChatMessage::system("You are an expert summarization engine."),
             ChatMessage::user(summarization_prompt),
         ];
-        let request = ChatRequestBuilder::default()
-            .model(&self.model)
-            .messages(messages)
-            .temperature(0.7)
-            .build()?;
-        let response = self.llm
-            .chat(&request).await
-            .map_err(|e| AgentError::ChatProvider(Box::new(e)))?
-            .message;
+        let response = self.llm.chat(messages).await?.message;
         
         // update messages
         self.messages.clear();

@@ -1,10 +1,10 @@
-use std::cell::RefCell;
+use std::sync::RwLock;
 use abu_base::chat::{ChatMessage, ChatRequest, ChatRequestBuilder, ChatResponse, UserMessage};
 use abu_provider::{anthropic::Anthropic, deepseek::DeepSeek, openai::OpenAi, ChatProvide, ProvideError};
 use abu_tool::{Tool, ToolDefinition};
 
 pub struct ChatModel<P> {
-    request: RefCell<ChatRequest>,
+    request: RwLock<ChatRequest>,
     config: ChatConfig,
     provider: P,
 }
@@ -49,7 +49,7 @@ impl<P: ChatProvide> ChatModel<P> {
             .build()
             .expect("request just need model to build!");
         Self {
-            request: RefCell::new(request),
+            request: RwLock::new(request),
             config: ChatConfig::default(),
             provider
         }
@@ -63,11 +63,11 @@ impl<P: ChatProvide> ChatModel<P> {
         let tool_defines: Vec<_> = tools.into_iter()
             .map(|t| t.to_function_define())
             .collect(); 
-        self.request.borrow_mut().tools = tool_defines;  
+        self.request.write().unwrap().tools = tool_defines;  
     }
 
     pub fn bind_tool_defines(&mut self, tools: impl Into<Vec<ToolDefinition>>) {
-        self.request.borrow_mut().tools = tools.into(); 
+        self.request.write().unwrap().tools = tools.into(); 
     }
 
     #[inline]
@@ -83,7 +83,7 @@ impl<P: ChatProvide> ChatModel<P> {
     async fn send(&self, messages: impl IntoChatMessages, config: &ChatConfig, with_tools: bool) -> Result<ChatResponse, ChatModelError> {
         // set messages
         let messages = messages.into_messages();
-        let mut request = self.request.borrow_mut();
+        let mut request = self.request.write().unwrap();
         request.messages = messages;
         // set config
         request.temperature = config.temperature;
