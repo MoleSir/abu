@@ -1,12 +1,43 @@
 use abu_base::chat::{AssistantMessage, ChatMessage, ToolCall, ToolDefinition};
 use abu_provider::ChatProvide;
 use abu_tool::ToolCallResult;
-use crate::AgentError;
+use crate::{middleware::MiddlewareFlow, AgentError};
 use crate::memory::Memory;
 use super::{Agent, AgentResult};
 
 use thiserrorctx::Context;
 use tracing::{debug, info, warn};
+
+pub enum AgentControl<T> {
+    Normal(T),
+    Break(String),
+}
+
+impl<T> AgentControl<T> {
+    pub fn unwrap(self) -> T {
+        match self {
+            Self::Break(_) => panic!("control is break!"),
+            Self::Normal(v) => v,
+        }
+    }
+}
+
+macro_rules! extract_agent_control {
+    ($control:ident) => {
+        match $control {
+            AgentControl::Break(s) => return Ok(AgentControl::Break(s)),
+            AgentControl::Normal(m) => m,
+        }
+    };
+}
+
+macro_rules! return_middleware_break {
+    ($flow:ident) => {
+        if let MiddlewareFlow::Break(s) = $flow {
+            return Ok(AgentControl::Break(s));
+        }
+    };
+}
 
 impl<C: ChatProvide, M: Memory> Agent<C, M> {
     pub fn tool_list(&self) -> &[ToolDefinition] {
@@ -17,10 +48,11 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
         &self.context_builder.system_prompt
     }
 
-    pub async fn run(&mut self, query: &str) -> AgentResult<String> {
+    pub async fn run(&mut self, query: &str) -> AgentResult<AgentControl<String>> {
         info!(query = %query, "🤖 Agent started with user query");
         self.hooks.on_agent_start(query).await.context("agent start hook")?;
         
+        // init context
         let memories = self.search_memory(query).await.context("search memory")?;
         let mut messages = self.build_context(query, memories).await.context("build context")?;
 
@@ -30,8 +62,10 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
             debug!(step, "🔄 Agent step begin");
             self.hooks.on_step_start(step).await.with_context(|| format!("step {step} start"))?;
 
-            let mut ai_message = self.llm_chat(step, &messages, true).await.with_context(|| format!("chat with llm in step {}", step))?;
-            
+            // chat with llm
+            let control = self.llm_chat(step, &messages, true).await
+                .with_context(|| format!("chat with llm in step {}", step))?;
+            let mut ai_message = extract_agent_control!(control);
             messages.push(ai_message.clone().into());
 
             info!(step, role = "AI", content = ai_message.content, "🗣️ LLM Text Response");
@@ -45,7 +79,9 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
             // tool calls
             for tool_call in ai_message.tool_calls.iter_mut() {
                 info!(step, tool = %tool_call.name, id = %tool_call.id, args = %tool_call.arguments, "🚀 Executing tool");
-                let result = self.execute_tool(step, tool_call).await.context("execute tool")?;
+                // execute tools
+                let control = self.execute_tool(step, tool_call).await.context("execute tool")?;
+                let result = extract_agent_control!(control);
 
                 let tool_content = if result.is_error {
                     info!(step, result = %result.context, "Tool execute failed!");
@@ -67,43 +103,47 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
             Some(final_result) => {
                 info!(output = final_result, "🛑 Finish task with final output");
                 self.add_memory(query, &final_result).await?;
-                Ok(final_result)
+                Ok(AgentControl::Normal(final_result))
             }
             None => {
                 warn!("Agent reached max steps without termination");
                 self.hooks.on_agent_max_iteration().await.context("max iter hook")?;
-                Ok("Task do not finish yet".to_string())
+                Ok(AgentControl::Normal("Task do not finish yet".to_string()))
             }
         }
     }
 
-    pub async fn chat(&mut self, query: &str) -> AgentResult<String> {
+    pub async fn chat(&mut self, query: &str) -> AgentResult<AgentControl<String>> {
         info!(query = %query, "🤖 Agent started with user query");
-
+        
+        // init context
         let memories = self.search_memory(query).await.context("search memory")?;
         let messages = self.build_context(query, memories).await.context("build context")?;
         
-        let ai_message = self.llm_chat(0, &messages, false).await.context("chat with llm")?;
+        // chat with llm
+        let control = self.llm_chat(0, &messages, false).await.context("chat with llm")?;
+        let ai_message = extract_agent_control!(control);
+
         info!(role = "AI", content = ai_message.content, "🗣️ LLM Text Response");
-        
         self.add_memory(query, &ai_message.content).await?;
 
-        Ok(ai_message.content)
+        Ok(AgentControl::Normal(ai_message.content))
     }
 
-    async fn execute_tool(&mut self, step: usize, tool_call: &mut ToolCall) -> AgentResult<ToolCallResult> {
-        self.middlewares
+    async fn execute_tool(&mut self, step: usize, tool_call: &mut ToolCall) -> AgentResult<AgentControl<ToolCallResult>> {
+        let flow = self.middlewares
             .intercept_tool_call(tool_call)
             .await.context("intercept tool call")?;
+        return_middleware_break!(flow);
         
         self.hooks.on_tool_start(step, tool_call).await.context("tool start hook")?;
 
-        let arguments = serde_json::from_str(&tool_call.arguments)?;
-        let mut result = self.toolbox.execute_tool(&tool_call.name, arguments).await.context("execute tool")?;
+        let mut result = self.toolbox.execute_tool(&tool_call.name, &tool_call.arguments).await.context("execute tool")?;
 
-        self.middlewares
+        let flow = self.middlewares
             .intercept_tool_result(&tool_call.name, &mut result)
             .await.context("intercept tool result")?;
+        return_middleware_break!(flow);
         
         self.hooks.on_tool_end(step, &result).await.context("tool end hook")?;
 
@@ -111,7 +151,7 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
             self.hooks.on_tool_error(step, &result.context).await.context("tool error hook")?;
         }
         
-        Ok(result)
+        Ok(AgentControl::Normal(result))
     }
 
     async fn add_memory(&mut self, user_input: &str, ai_response: &str) -> AgentResult<()> {
@@ -145,7 +185,7 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
         Ok(messages)
     }
 
-    async fn llm_chat(&mut self, step: usize, messages: &[ChatMessage], with_tool: bool) -> AgentResult<AssistantMessage> {
+    async fn llm_chat(&mut self, step: usize, messages: &[ChatMessage], with_tool: bool) -> AgentResult<AgentControl<AssistantMessage>> {
         self.hooks.on_llm_start(step, messages).await.context("llm start hook")?;
 
         let mut ai_message = if with_tool {
@@ -154,12 +194,13 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
             self.llm.chat_no_tools(messages).await?.message
         };
 
-        self.middlewares
+        let flow = self.middlewares
             .intercept_llm_out(&mut ai_message).await
             .context("intercept llm out")?;
-        
+        return_middleware_break!(flow);
+
         self.hooks.on_llm_end(step, &ai_message).await.context("llm end hook")?;
 
-        Ok(ai_message)
+        Ok(AgentControl::Normal(ai_message))
     }
 }

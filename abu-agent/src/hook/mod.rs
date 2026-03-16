@@ -1,8 +1,11 @@
 mod consolelog;
 pub use consolelog::*;
+mod auditfilelog;
+pub use auditfilelog::*;
 
 use abu_base::chat::{AssistantMessage, ChatMessage, ToolCall};
 use abu_tool::ToolCallResult;
+use serde::Serialize;
 use crate::{AgentError, AgentResult};
 
 /// All runtime events emitted by Agent
@@ -17,6 +20,7 @@ use crate::{AgentError, AgentResult};
 ///      4. ToolEnd
 ///  4. StepEnd
 /// AgentEnd
+#[derive(Serialize)]
 pub enum HookEvent<'a> {
     // ===== agent lifecycle =====
     AgentStart { query: &'a str, },
@@ -40,9 +44,6 @@ pub enum HookEvent<'a> {
     ToolStart { step: usize, tool_call: &'a ToolCall },
     ToolEnd { step: usize, result: &'a ToolCallResult },
     ToolError { step: usize, context: &'a str },
-
-    // ===== error =====
-    Error { error: &'a AgentError },
 }
 
 #[async_trait::async_trait]
@@ -130,11 +131,6 @@ impl HookManager {
         self.dispatch(&event).await
     }
 
-    pub async fn on_error(&self, error: &AgentError) -> AgentResult<()> {
-        let event = HookEvent::error(error);
-        self.dispatch(&event).await
-    }
-
     async fn dispatch(&self, event: &HookEvent<'_>) -> AgentResult<()> {
         for hook in &self.hooks {
             hook.on_event(event).await?;
@@ -195,10 +191,6 @@ impl<'a> HookEvent<'a> {
 
     pub fn tool_error(step: usize, context: &'a str) -> Self {
         Self::ToolError { step, context }
-    }
-
-    pub fn error(error: &'a AgentError) -> Self {
-        Self::Error { error }
     }
 }
 

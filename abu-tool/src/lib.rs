@@ -1,6 +1,7 @@
 mod register;
 pub use register::ToolRegister;
 pub use abu_base::chat::ToolDefinition;
+use serde::Serialize;
 use serde_json::Value;
 
 #[async_trait::async_trait]
@@ -158,7 +159,7 @@ pub(crate) fn build_params_schema(params: &[ToolParameter]) -> serde_json::Value
     })
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ToolCallResult {
     pub is_error: bool,
     pub context: String,

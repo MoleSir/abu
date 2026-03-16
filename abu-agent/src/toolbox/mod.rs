@@ -54,7 +54,12 @@ impl ToolBox {
         Ok(())
     }
 
-    pub async fn execute_tool(&mut self, name: &str, arguments: serde_json::Value) -> AgentResult<ToolCallResult> {
+    pub async fn execute_tool(&mut self, name: &str, arguments: &str) -> AgentResult<ToolCallResult> {
+        let arguments = match serde_json::from_str(arguments) {
+            Err(e) => return Ok(ToolCallResult::error(e.to_string())),
+            Ok(v) => v,
+        };
+
         if self.tools.has_tool(&name) {
             let result = self.tools.execute(name, arguments).await?;
             Ok(result)

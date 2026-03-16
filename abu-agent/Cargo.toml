@@ -22,10 +22,13 @@ thiserrorctx = { workspace = true }
 async-trait = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["macros"] }
+tokio = { workspace = true, features = ["macros", "fs"] }
 tracing = { workspace = true }
 meval = { workspace = true }
 colored = { workspace = true }
+chrono = { workspace = true }
+regex = { workspace = true }
+
 
 [dev-dependencies]
 tracing-subscriber = { workspace = true }

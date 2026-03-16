@@ -114,13 +114,6 @@ impl Hook for ConsoleLoggerHook {
             HookEvent::ToolError { step: _, context } => {
                 println!("│      🚨 {} {}", "Tool Fatal:".bold().red().on_black(), context.red());
             }
-
-            // ==========================================
-            // 严重错误
-            // ==========================================
-            HookEvent::Error { error } => {
-                println!("\n{}", format!("🔥 [AGENT SYSTEM ERROR] {}", error).bold().on_red().white());
-            }
         }
 
         Ok(())
