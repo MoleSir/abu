@@ -3,7 +3,7 @@ use abu_provider::{deepseek::DeepSeek, ChatProvide};
 use abu_skill::SkillLoader;
 use abu_tool::Tool;
 use crate::{
-    context::ContextBuilder, hook::{Hook, HookManager}, memory::{Memory, SequentialMemory}, middleware::{LlmOutMiddleware, Middleware, MiddlewareManager, ToolCallMiddleware, ToolResultMiddleware}, model::{ChatConfig, ChatModel}, toolbox::tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWriter}, skill::SkillTool}, AgentResult
+    context::ContextBuilder, hook::{Hook, HookManager}, memory::{Memory, SequentialMemory}, middleware::{LlmInputMiddleware, LlmOutMiddleware, MemoryAddMiddleware, Middleware, MiddlewareManager, ToolCallMiddleware, ToolResultMiddleware}, model::{ChatConfig, ChatModel}, toolbox::tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWriter}, skill::SkillTool}, AgentResult
 };
 use super::{Agent, AgentConfig, ToolBox};
 
@@ -177,6 +177,11 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
         self
     }
 
+    pub fn with_llm_input_middleware<LM: LlmInputMiddleware + 'static>(mut self, middleware: LM) -> Self {
+        self.middlewares.add_llm_input(middleware);
+        self
+    }
+
     pub fn with_llm_out_middleware<LM: LlmOutMiddleware + 'static>(mut self, middleware: LM) -> Self {
         self.middlewares.add_llm_out(middleware);
         self
@@ -189,6 +194,11 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
 
     pub fn with_tool_result_middleware<TM: ToolResultMiddleware + 'static>(mut self, middleware: TM) -> Self {
         self.middlewares.add_tool_result(middleware);
+        self
+    }
+
+    pub fn with_memory_add_middleware<MM: MemoryAddMiddleware + 'static>(mut self, middleware: MM) -> Self {
+        self.middlewares.add_memory_add(middleware);
         self
     }
 

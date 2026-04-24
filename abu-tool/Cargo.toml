@@ -9,6 +9,7 @@ license = { workspace = true }
 
 [dependencies]
 abu-base = { workspace = true }
+abu-macros = { workspace = true }
 thiserror = { workspace = true }
 async-trait = { workspace = true }
 serde = { workspace = true }

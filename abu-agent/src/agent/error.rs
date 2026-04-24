@@ -22,7 +22,7 @@ pub enum AgentError {
     Hook(Box<dyn std::error::Error + 'static + Send + Sync>),
 
     #[error("when {0} error {1}")]
-    Middleware(&'static str, Box<dyn std::error::Error + 'static + Send + Sync>),
+    Middleware(&'static str, String),
 
     #[error(transparent)]
     SerdeJson(#[from] serde_json::Error),

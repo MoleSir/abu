@@ -8,15 +8,15 @@ impl ConsoleLoggerHook {
         Self
     }
 
-    fn truncate(text: &str, max_len: usize) -> String {
-        let text = text.replace('\n', " ");
-        if text.chars().count() > max_len {
-            let truncated: String = text.chars().take(max_len).collect();
-            format!("{}...", truncated)
-        } else {
-            text
-        }
-    }
+    // fn truncate(text: &str, max_len: usize) -> String {
+    //     let text = text.replace('\n', " ");
+    //     if text.chars().count() > max_len {
+    //         let truncated: String = text.chars().take(max_len).collect();
+    //         format!("{}...", truncated)
+    //     } else {
+    //         text
+    //     }
+    // }
 }
 
 #[async_trait::async_trait]
@@ -66,7 +66,7 @@ impl Hook for ConsoleLoggerHook {
             HookEvent::MemorySearch { query, results } => {
                 let count = results.len();
                 if count > 0 {
-                    println!("│  🧠 {} Searched for '{}', found {} records.", "Memory:".bold().cyan(), Self::truncate(query, 20), count);
+                    println!("│  🧠 {} Searched for '{}', found {} records.", "Memory:".bold().cyan(), query, count);
                 } else {
                     println!("│  🧠 {} No relevant memory found.", "Memory:".bold().bright_black());
                 }
@@ -89,7 +89,7 @@ impl Hook for ConsoleLoggerHook {
             }
             HookEvent::LlmEnd { step: _, message } => {
                 if !message.content.is_empty() {
-                    println!("│  💡 {} {}", "LLM Res:".bold().blue(), Self::truncate(&message.content, 80).white());
+                    println!("│  💡 {} {}", "LLM Res:".bold().blue(), message.content.white());
                 }
                 if !message.tool_calls.is_empty() {
                     println!("│  🛠️  {} Model decided to call {} tool(s).", "LLM Res:".bold().yellow(), message.tool_calls.len());
@@ -100,11 +100,11 @@ impl Hook for ConsoleLoggerHook {
             // 工具执行
             // ==========================================
             HookEvent::ToolStart { step: _, tool_call } => {
-                let args = Self::truncate(&tool_call.arguments, 50);
+                let args = &tool_call.arguments;
                 println!("│      ▶ {} {}({})", "Executing:".bold().magenta(), tool_call.name.bold().white(), args.bright_black());
             }
             HookEvent::ToolEnd { step: _, result } => {
-                let out = Self::truncate(&result.context, 60);
+                let out = &result.context;
                 if result.is_error {
                     println!("│      ❌ {} {}", "Tool Fail:".bold().red(), out.red());
                 } else {

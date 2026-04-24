@@ -6,6 +6,7 @@ use abu_mcp::McpTool;
 use abu_tool::{Tool, ToolCallResult, ToolError, ToolRegister};
 use mcp::McpManager;
 use tracing::debug;
+pub use tools::*;
 
 use crate::AgentResult;
 

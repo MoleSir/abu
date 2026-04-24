@@ -1,10 +1,10 @@
 use std::process::Command;
 
-#[abu_macros::tool(
+#[abu_tool::tool(
     struct_name = Bash,
     description = "Run a shell command.",
 )]
-pub fn bash(command: &str) -> String {
+pub fn bash(command: String) -> String {
     match Command::new("sh")
         .arg("-c")
         .arg(command)

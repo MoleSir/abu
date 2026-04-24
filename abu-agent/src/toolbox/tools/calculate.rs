@@ -4,7 +4,7 @@
 )]
 fn calculate(
     #[arg(description="Numerical expression to compute the result of, in Python syntax.")]
-    formula: &str
+    formula: &str,
 ) -> std::result::Result<f64, meval::Error> {
     meval::eval_str(formula)
 }

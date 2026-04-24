@@ -1,3 +1,4 @@
 [workspace]
 members = [ 
+    "learn-claude-code", 
 ]

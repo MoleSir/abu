@@ -4,18 +4,12 @@ use syn::{
 use proc_macro2;
 use quote::quote;
 
-#[derive(Clone, Copy)]
-pub enum ParamType {
-    I64,
-    USize,
-    Str,
-    String,
-}
-
 pub struct Param {
     pub name: Ident,
-    pub typ: ParamType,
+    pub typ: Type,
+    pub is_reference: bool,
     pub description: Option<String>,
+    pub default: Option<String>,
 }
 
 pub fn parse_params(input_fn: &mut ItemFn) -> (Vec<Param>, bool) {
@@ -28,27 +22,43 @@ pub fn parse_params(input_fn: &mut ItemFn) -> (Vec<Param>, bool) {
             let param_name = if let syn::Pat::Ident(ident) = &*pat_type.pat {
                 &ident.ident
             } else {
-                panic!("")
+                panic!("Expected ident")
             };
 
-            let param_type = &*pat_type.ty;
+            let mut param_type = (*pat_type.ty).clone();
+            let mut is_reference = false;
 
-            let param_type_enum = match param_type {
-                Type::Path(type_path) if type_path.path.is_ident("i64") => ParamType::I64,
-                Type::Path(type_path) if type_path.path.is_ident("String") => ParamType::String,
-                Type::Path(type_path) if type_path.path.is_ident("usize") => ParamType::USize,
-                Type::Reference(type_ref) if matches!(type_ref.elem.as_ref(), Type::Path(tp) if tp.path.is_ident("str")) => ParamType::Str,
-                _ => panic!("")
-            };
+            if let Type::Reference(type_ref) = &param_type {
+                is_reference = true;
+                let elem = type_ref.elem.as_ref();
+                
+                if let Type::Path(tp) = elem {
+                    if tp.path.is_ident("str") {
+                        param_type = syn::parse_quote!(String);
+                    } else {
+                        param_type = elem.clone();
+                    }
+                } else if let Type::Slice(slice) = elem {
+                    let inner = &slice.elem;
+                    param_type = syn::parse_quote!(Vec<#inner>);
+                } else {
+                    param_type = elem.clone();
+                }
+            }
             
             let mut next_attrs = Vec::new();
-            let mut description = None;    
+            let mut description = None;
+            let mut default = None;
             for attr in &pat_type.attrs {
                 if attr.path().is_ident("arg") {
                     attr.parse_nested_meta(|meta| {
                         if meta.path.is_ident("description") {
                             let value: syn::LitStr = meta.value()?.parse()?;
                             description = Some(value.value());
+                            Ok(())
+                        } else if meta.path.is_ident("default") {
+                            let value: syn::LitStr = meta.value()?.parse()?;
+                            default = Some(value.value());
                             Ok(())
                         } else {
                             Err(meta.error("unknown key in arg"))
@@ -62,7 +72,9 @@ pub fn parse_params(input_fn: &mut ItemFn) -> (Vec<Param>, bool) {
 
             params.push(Param {
                 name: param_name.clone(),
-                typ: param_type_enum,
+                typ: param_type, 
+                is_reference,
+                default,
                 description,
             });
         } else {
@@ -76,21 +88,31 @@ pub fn parse_params(input_fn: &mut ItemFn) -> (Vec<Param>, bool) {
 pub fn generate_args_transform_code(params_info: &[Param]) -> Vec<proc_macro2::TokenStream> {
     let abu = crate::utils::get_abu_path();
     let mut args_trans_code = Vec::new();
+    
     for param in params_info {
         let arg_name = &param.name;
         let arg_name_str = arg_name.to_string();
-        let trans_code = match param.typ {
-            ParamType::I64 => quote! { as_i64().ok_or_else(|| #abu::ToolError::ArgParse("i64"))? },
-            ParamType::USize => quote ! { as_i64().ok_or_else(|| #abu::ToolError::ArgParse("i64"))? },
-            ParamType::Str => quote! { as_str().ok_or_else(|| #abu::ToolError::ArgParse("string"))? },
-            ParamType::String => quote! { as_str().ok_or_else(|| #abu::ToolError::ArgParse("string"))? },
+        let typ = &param.typ; 
+
+        let code = match &param.default {
+            None => quote! {
+                let #arg_name = {
+                    let val = args.get(#arg_name_str).cloned().ok_or_else(|| #abu::ToolError::ArgNotFound(#arg_name_str.to_string()) )?;                
+                    <#typ as #abu::ToolArgument>::from_value(val).map_err(|e| #abu::ToolError::ArgParse(stringify!(#typ)))?
+                };
+            },
+            Some(default) => {
+                let default_expr: syn::Expr = syn::parse_str(default).expect("Invalid default value expression");
+                quote! {
+                    let #arg_name = match args.get(#arg_name_str).cloned() {
+                        None => #default_expr,
+                        Some(val) => <#typ as #abu::ToolArgument>::from_value(val).map_err(|e| #abu::ToolError::ArgParse(stringify!(#typ)))?,
+                    };
+                }
+            }
         };
-        args_trans_code.push(quote! {
-            let #arg_name = args
-                .get(#arg_name_str)
-                .ok_or_else(|| #abu::ToolError::ArgNotFound(#arg_name_str.to_string()))?
-                .#trans_code;
-        });
+
+        args_trans_code.push(code);
     }
     args_trans_code
 }
@@ -104,20 +126,26 @@ pub fn generate_parameters(params: &[Param]) -> proc_macro2::TokenStream {
     }
 }
 
-/// TODO: More suitation
 pub fn generate_parameter(param: &Param) -> proc_macro2::TokenStream {
     let abu = crate::utils::get_abu_path();
     let name = param.name.to_string();
+    let typ = &param.typ;
 
-    let mut code = match param.typ {
-        ParamType::Str => quote! { #abu::ToolParameter::string(#name) },
-        ParamType::String => quote! { #abu::ToolParameter::string(#name) },
-        ParamType::I64 => quote! { #abu::ToolParameter::integer(#name) },
-        ParamType::USize => quote! { #abu::ToolParameter::integer(#name) },
+    let mut code = quote! {
+        #abu::ToolParameter {
+            name: #name.to_string(),
+            required: false,
+            description: None,
+            kind: <#typ as #abu::ToolArgument>::parameter_kind(),
+        }
     };
 
     if let Some(desc) = &param.description {
         code = quote! { #code.description(#desc) }
+    }
+
+    if let Some(_) = &param.default {
+        code = quote! { #code.required(true) }
     }
 
     code
@@ -127,19 +155,22 @@ pub fn generate_return_code(input_fn: &ItemFn, params_info: &[Param], struct_nam
     let abu = crate::utils::get_abu_path();
     let fn_name = &input_fn.sig.ident;
     let async_mark = if input_fn.sig.asyncness.is_none() { quote! { } } else { quote! { .await } };
+    
     let mut args = Vec::new();
-    for (i, param) in params_info.iter().enumerate() {
+    for param in params_info.iter() {
         let arg_name = &param.name;
-        if i != 0 {
-            args.push(quote! { , });
+        
+        if param.is_reference {
+            args.push(quote! { &#arg_name });
+        } else {
+            args.push(quote! { #arg_name });
         }
-        args.push(quote! { #arg_name });                
     }
 
     let fn_invoke = if is_associated {
-        quote! { self.#fn_name(#(#args)*)#async_mark }
+        quote! { self.#fn_name(#(#args),*)#async_mark } 
     } else { 
-        quote! { #struct_name::#fn_name(#(#args)*)#async_mark }
+        quote! { #struct_name::#fn_name(#(#args),*)#async_mark }
     };
 
     match &input_fn.sig.output {

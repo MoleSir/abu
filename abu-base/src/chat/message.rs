@@ -4,9 +4,8 @@ use crate::common::Role;
 
 use super::tool::*;
 use serde::{Deserialize, Serialize};
-use strum::{EnumMessage, EnumVariantNames};
 
-#[derive(Debug, Clone, Serialize, EnumVariantNames, EnumMessage)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case", tag = "role")]
 pub enum ChatMessage {
     /// A message from a system.

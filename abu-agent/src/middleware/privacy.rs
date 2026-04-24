@@ -23,7 +23,7 @@ impl PrivacyScrubberMiddleware {
 impl LlmOutMiddleware for PrivacyScrubberMiddleware {
     type Error = Infallible;
 
-    async fn intercept(&self, ai_message: &mut AssistantMessage) -> Result<MiddlewareFlow, Self::Error> {
+    async fn intercept(&mut self, ai_message: &mut AssistantMessage) -> Result<MiddlewareFlow, Self::Error> {
         let scrubbed = self.phone_regex.replace_all(&ai_message.content, "***-****-****");
         let scrubbed = self.email_regex.replace_all(&scrubbed, "[EMAIL PROTECTED]");
 

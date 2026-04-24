@@ -27,7 +27,7 @@ impl HitlMiddleware {
 impl ToolCallMiddleware for HitlMiddleware {
     type Error = Infallible;
 
-    async fn intercept(&self, tool_call: &mut ToolCall) -> Result<MiddlewareFlow, Self::Error> {
+    async fn intercept(&mut self, tool_call: &mut ToolCall) -> Result<MiddlewareFlow, Self::Error> {
         if self.dangerous_tools.contains(&tool_call.name) {
             println!("⚠️ [HITL] AI 想要执行高危操作: {}", tool_call.name);
             println!("   参数: {}", tool_call.arguments);
@@ -81,7 +81,7 @@ impl ToolPermissionGuardMiddleware {
 impl ToolCallMiddleware for ToolPermissionGuardMiddleware {
     type Error = Infallible;
 
-    async fn intercept(&self, tool_call: &mut ToolCall) -> Result<MiddlewareFlow, Self::Error> {
+    async fn intercept(&mut self, tool_call: &mut ToolCall) -> Result<MiddlewareFlow, Self::Error> {
         if self.forbidden_tools.contains(&tool_call.name) {
             let error_msg = format!(
                 "System Error: Permission denied to execute tool '{}'. Please do not try to use this tool.",
@@ -112,7 +112,7 @@ impl ResultTruncatorMiddleware {
 impl ToolResultMiddleware for ResultTruncatorMiddleware {
     type Error = Infallible;
 
-    async fn intercept(&self, _tool_name: &str, result: &mut ToolCallResult) -> Result<MiddlewareFlow, Self::Error> {
+    async fn intercept(&mut self, _tool_name: &str, result: &mut ToolCallResult) -> Result<MiddlewareFlow, Self::Error> {
         let current_len = result.context.chars().count();
 
         if current_len > self.max_length {

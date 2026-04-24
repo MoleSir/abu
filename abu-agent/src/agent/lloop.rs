@@ -63,7 +63,7 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
             self.hooks.on_step_start(step).await.with_context(|| format!("step {step} start"))?;
 
             // chat with llm
-            let control = self.llm_chat(step, &messages, true).await
+            let control = self.llm_chat(step, &mut messages, true).await
                 .with_context(|| format!("chat with llm in step {}", step))?;
             let mut ai_message = extract_agent_control!(control);
             messages.push(ai_message.clone().into());
@@ -100,9 +100,9 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
         }
 
         match final_result {
-            Some(final_result) => {
+            Some(mut final_result) => {
                 info!(output = final_result, "🛑 Finish task with final output");
-                self.add_memory(query, &final_result).await?;
+                self.add_memory(query, &mut final_result).await?;
                 Ok(AgentControl::Normal(final_result))
             }
             None => {
@@ -118,14 +118,14 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
         
         // init context
         let memories = self.search_memory(query).await.context("search memory")?;
-        let messages = self.build_context(query, memories).await.context("build context")?;
+        let mut messages = self.build_context(query, memories).await.context("build context")?;
         
         // chat with llm
-        let control = self.llm_chat(0, &messages, false).await.context("chat with llm")?;
-        let ai_message = extract_agent_control!(control);
+        let control = self.llm_chat(0, &mut messages, false).await.context("chat with llm")?;
+        let mut ai_message = extract_agent_control!(control);
 
         info!(role = "AI", content = ai_message.content, "🗣️ LLM Text Response");
-        self.add_memory(query, &ai_message.content).await?;
+        self.add_memory(query, &mut ai_message.content).await?;
 
         Ok(AgentControl::Normal(ai_message.content))
     }
@@ -154,15 +154,19 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
         Ok(AgentControl::Normal(result))
     }
 
-    async fn add_memory(&mut self, user_input: &str, ai_response: &str) -> AgentResult<()> {
+    async fn add_memory(&mut self, user_input: &str, ai_response: &mut String) -> AgentResult<()> {
         debug!(user_input = user_input, ai_response = ai_response, "add memory");
         
+        self.middlewares    
+            .intercept_memory_add(user_input, ai_response).await
+            .context("intercept memory add")?;
+
+        self.hooks.on_memory_add(user_input, ai_response).await.context("memory add hook")?;
+
         self.memory
             .add(user_input, ai_response).await
             .map_err(|e| AgentError::Memory(Box::new(e)))
             .context("add new memory")?;
-
-        self.hooks.on_memory_add(user_input, ai_response).await.context("memory add hook")?;
 
         Ok(())
     }
@@ -185,13 +189,15 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
         Ok(messages)
     }
 
-    async fn llm_chat(&mut self, step: usize, messages: &[ChatMessage], with_tool: bool) -> AgentResult<AgentControl<AssistantMessage>> {
+    async fn llm_chat(&mut self, step: usize, messages: &mut Vec<ChatMessage>, with_tool: bool) -> AgentResult<AgentControl<AssistantMessage>> {
+        
+        
         self.hooks.on_llm_start(step, messages).await.context("llm start hook")?;
 
         let mut ai_message = if with_tool {
-            self.llm.chat(messages).await?.message
+            self.llm.chat(messages.as_slice()).await?.message
         } else {
-            self.llm.chat_no_tools(messages).await?.message
+            self.llm.chat_no_tools(messages.as_slice()).await?.message
         };
 
         let flow = self.middlewares
