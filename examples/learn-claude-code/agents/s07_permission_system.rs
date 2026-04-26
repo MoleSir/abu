@@ -1,5 +1,5 @@
 use std::{io::Write, path::{Path, PathBuf}, process::Stdio, sync::{mpsc, OnceLock}, thread, time::Duration};
-use abu_agent::{hook::ConsoleLoggerHook, model::ChatModel, toolbox::SubAgentTool, AgentBuilder};
+use abu_agent::{hook::ConsoleLoggerHook, model::ChatModel, toolbox::{ExecutionMode, Matcher, PermissionManager, UserAuthorizer, UserResponse}, AgentBuilder};
 use std::process::Command;
 
 #[tokio::main]
@@ -11,35 +11,26 @@ async fn main() {
 
 async fn result_main() -> anyhow::Result<()> {    
     dotenv::from_filename(".env")?;
-    let model = ChatModel::deepseek("deepseek-chat")?;
-    let subagent = AgentBuilder::new(model)
-        .system_prompt("You are a coding subagent. Complete the given task, then summarize your findings.")
-        .with_hook(ConsoleLoggerHook::new())
-        .with_tool(Bash::new())
-        .with_tool(ReadFile::new())
-        .with_tool(WriteFile::new())
-        .build().await?;
-    let subagent = SubAgentTool::new(
-        subagent, 
-        "task", 
-        "Spawn a subagent with fresh context. It shares the filesystem but not conversation history."
-    );
+
+    let permission = PermissionManager::new(ExecutionMode::Default, InputUserAuthorizer)
+        .with_deny_if("bash", "content", Matcher::contains("rm -rf /"))
+        .with_deny_if("bash", "content", Matcher::contains("sudo"))
+        .with_allow("read_file");
 
     let model = ChatModel::deepseek("deepseek-chat")?;
+    let cur_path = std::env::current_dir()?;
+    println!("{:?}",cur_path);
     let mut agent = AgentBuilder::new(model)
-        .max_iteration(20)
-        .system_prompt("You are a coding agent. Use the task tool to delegate exploration or subtasks.")
+        .system_prompt(format!("You are a coding agent at {:?}. Use tools to solve tasks. The user controls permissions. Some tool calls may be denied.", cur_path))
         .with_hook(ConsoleLoggerHook::new())
         .with_tool(Bash::new())
         .with_tool(ReadFile::new())
         .with_tool(WriteFile::new())
-        .with_subagent(subagent)
+        .with_permission(permission)
         .build().await?;
-
-    println!("{:#?}", agent.tool_list());
 
     loop {
-        print!("s04 >> ");
+        print!("s07 >> ");
         std::io::stdout().flush()?;
         
         let mut query = String::new();
@@ -48,11 +39,40 @@ async fn result_main() -> anyhow::Result<()> {
         if query == "q" || query == "quit" || query.is_empty() {
             break;
         }
+        if query == "/mode" {
+            println!("{:?}", agent.toolbox.execution_mode().unwrap());
+            continue;
+        }
         
         agent.run(query).await?;
     }
 
     Ok(())
+}
+
+// ====================================================================== //
+//                      Permission
+// ====================================================================== //
+
+pub struct InputUserAuthorizer;
+
+#[async_trait::async_trait]
+impl UserAuthorizer for InputUserAuthorizer {
+    async fn ask_user(&self, tool_name: &str, _arguments: &serde_json::Value, preview_reason: &str) -> UserResponse {
+        println!("\n  [Permission] {tool_name}: {preview_reason}");
+        print!("  Allow? (y/n/always): ");
+        std::io::stdout().flush().unwrap();
+        loop {
+            let mut answer = String::new();
+            std::io::stdin().read_line(&mut answer).unwrap();
+            match answer.as_str().trim() {
+                "always" => return UserResponse::Always,
+                "y" | "yes" => return UserResponse::Yes,
+                "n" | "no" => return UserResponse::No,
+                _ => {},
+            }
+        }
+    }   
 }
 
 // ====================================================================== //
@@ -91,13 +111,7 @@ fn safe_path<P: AsRef<Path>>(p: P) -> anyhow::Result<PathBuf> {
     struct_name = Bash,
     description = "Run a shell command.",
 )]
-pub fn run_bash(command: &str) -> String {
-    // 过滤危险命令
-    let dangerous = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/"];
-    if dangerous.iter().any(|&d| command.contains(d)) {
-        return "Error: Dangerous command blocked".to_string();
-    }
-    
+pub fn run_bash(command: &str) -> String {    
     let (shell, arg) = ("sh", "-c");
     let cmd_str = command.to_string();
 
@@ -140,6 +154,7 @@ pub fn run_bash(command: &str) -> String {
 #[abu_macros::tool(
     struct_name = ReadFile,
     description = "Read file contents.",
+    category = "safe",
 )]
 pub fn run_read(path: &str) -> String {
     let fp = match safe_path(path) {

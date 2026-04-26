@@ -16,7 +16,6 @@ async fn result_main() -> anyhow::Result<()> {
     println!("{:?}",cur_path);
     let mut agent = AgentBuilder::new(model)
         .system_prompt(format!("You are a coding agent at {:?}. Use bash to inspect and change the workspace. Act first, then report clearly.", cur_path))
-        .with_builtin_tools(false)
         .with_hook(ConsoleLoggerHook::new())
         .with_tool(Bash::new())
         .with_tool(ReadFile::new())

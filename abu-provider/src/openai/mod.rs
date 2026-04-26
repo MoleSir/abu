@@ -73,6 +73,7 @@ impl OpenAi {
     }
 }
 
+#[async_trait::async_trait]
 impl ChatProvide for OpenAi {
     type Error = ProvideError;
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse, ProvideError> {
@@ -82,6 +83,7 @@ impl ChatProvide for OpenAi {
     }
 }
 
+#[async_trait::async_trait]
 impl EmbedProvide for OpenAi {
     type Error = ProvideError;
     async fn embed(&self, request: &EmbedRequest) -> Result<EmbedResponse, ProvideError> {

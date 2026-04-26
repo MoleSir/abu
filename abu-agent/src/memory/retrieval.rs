@@ -23,6 +23,7 @@ impl<P: EmbedProvide> RetrievalMemory<P> {
     }
 }
 
+#[async_trait::async_trait]
 impl<P: EmbedProvide> Memory for RetrievalMemory<P> {
     type Error = RetrievalMemoryError;
 

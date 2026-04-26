@@ -20,6 +20,7 @@ impl SliceWindowMemory {
     }
 }
 
+#[async_trait::async_trait]
 impl Memory for SliceWindowMemory {
     type Error = Infallible;
 

@@ -12,14 +12,13 @@ async fn main() {
 
 async fn result_main() -> anyhow::Result<()> {    
     dotenv::from_filename(".env")?;
-    let prompt = format!("
+    let prompt = "
 You are a coding agent.
 STRICT RULE: Every new request MUST begin with an `update_todo` call to initialize the plan.
 Even for simple tasks, create a plan with at least 2-3 granular steps.
 Example steps for refactoring: 1. Read source, 2. Apply changes, 3. Verify.
 Keep exactly one step in_progress. Refresh the plan as work advances.
-Prefer tools over prose."
-    );
+Prefer tools over prose.";
 
     let model = ChatModel::deepseek("deepseek-chat")?;
     let todo_manager = TodoManager::new();

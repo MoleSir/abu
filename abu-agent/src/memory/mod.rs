@@ -15,7 +15,7 @@ pub use retrieval::RetrievalMemory;
 pub use augmented::AugmentedMemory;
 pub use hierarchical::HierarchicalMemory;
 
-#[allow(async_fn_in_trait)]
+#[async_trait::async_trait]
 pub trait Memory : Send + Sync {
     type Error: std::error::Error + 'static + Send + Sync;
 

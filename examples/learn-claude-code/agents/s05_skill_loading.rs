@@ -11,35 +11,23 @@ async fn main() {
 
 async fn result_main() -> anyhow::Result<()> {    
     dotenv::from_filename(".env")?;
-    let model = ChatModel::deepseek("deepseek-chat")?;
-    let subagent = AgentBuilder::new(model)
-        .system_prompt("You are a coding subagent. Complete the given task, then summarize your findings.")
-        .with_hook(ConsoleLoggerHook::new())
-        .with_tool(Bash::new())
-        .with_tool(ReadFile::new())
-        .with_tool(WriteFile::new())
-        .build().await?;
-    let subagent = SubAgentTool::new(
-        subagent, 
-        "task", 
-        "Spawn a subagent with fresh context. It shares the filesystem but not conversation history."
-    );
 
     let model = ChatModel::deepseek("deepseek-chat")?;
+
     let mut agent = AgentBuilder::new(model)
         .max_iteration(20)
-        .system_prompt("You are a coding agent. Use the task tool to delegate exploration or subtasks.")
+        .system_prompt("You are a coding agent. Use load_skill when a task needs specialized instructions before you act.")
         .with_hook(ConsoleLoggerHook::new())
         .with_tool(Bash::new())
         .with_tool(ReadFile::new())
         .with_tool(WriteFile::new())
-        .with_subagent(subagent)
+        .with_skills("./skills")
         .build().await?;
 
     println!("{:#?}", agent.tool_list());
 
     loop {
-        print!("s04 >> ");
+        print!("s05 >> ");
         std::io::stdout().flush()?;
         
         let mut query = String::new();

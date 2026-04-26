@@ -22,6 +22,7 @@ impl<P: EmbedProvide> HierarchicalMemory<P> {
     }
 }
 
+#[async_trait::async_trait]
 impl<P: EmbedProvide> Memory for HierarchicalMemory<P> {
     type Error = RetrievalMemoryError;
 

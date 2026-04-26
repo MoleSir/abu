@@ -1,7 +1,7 @@
-use std::sync::RwLock;
 use abu_base::chat::{ChatMessage, ChatRequest, ChatRequestBuilder, ChatResponse, UserMessage};
 use abu_provider::{anthropic::Anthropic, deepseek::DeepSeek, openai::OpenAi, ChatProvide, ProvideError};
 use abu_tool::{Tool, ToolDefinition};
+use tokio::sync::RwLock;
 
 pub struct ChatModel<P> {
     request: RwLock<ChatRequest>,
@@ -59,15 +59,15 @@ impl<P: ChatProvide> ChatModel<P> {
         self.config = config;
     }
 
-    pub fn bind_tools<'a>(&'a mut self, tools: impl IntoIterator<Item = &'a Box<dyn Tool>>) {
+    pub async fn bind_tools<'a>(&'a mut self, tools: impl IntoIterator<Item = &'a Box<dyn Tool>>) {
         let tool_defines: Vec<_> = tools.into_iter()
             .map(|t| t.to_function_define())
             .collect(); 
-        self.request.write().unwrap().tools = tool_defines;  
+        self.request.write().await.tools = tool_defines;  
     }
 
-    pub fn bind_tool_defines(&mut self, tools: impl Into<Vec<ToolDefinition>>) {
-        self.request.write().unwrap().tools = tools.into(); 
+    pub async fn bind_tool_defines(&mut self, tools: impl Into<Vec<ToolDefinition>>) {
+        self.request.write().await.tools = tools.into(); 
     }
 
     #[inline]
@@ -83,7 +83,7 @@ impl<P: ChatProvide> ChatModel<P> {
     async fn send(&self, messages: impl IntoChatMessages, config: &ChatConfig, with_tools: bool) -> Result<ChatResponse, ChatModelError> {
         // set messages
         let messages = messages.into_messages();
-        let mut request = self.request.write().unwrap();
+        let mut request = self.request.write().await;
         request.messages = messages;
         // set config
         request.temperature = config.temperature;

@@ -10,13 +10,13 @@ use abu_base::{
     embed::{EmbedRequest, EmbedResponse},
 };
 
-#[allow(async_fn_in_trait)]
+#[async_trait::async_trait]
 pub trait ChatProvide : Send + Sync {
     type Error: std::error::Error + 'static + Sync + Send;
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse, Self::Error>;
 }
 
-#[allow(async_fn_in_trait)]
+#[async_trait::async_trait]
 pub trait EmbedProvide : Send + Sync {
     type Error: std::error::Error + 'static + Sync + Send;
     async fn embed(&self, request: &EmbedRequest) -> Result<EmbedResponse, Self::Error>;

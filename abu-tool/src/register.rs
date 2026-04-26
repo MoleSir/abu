@@ -3,7 +3,7 @@ use abu_base::chat::ToolDefinition;
 use super::{Tool, ToolCallResult, ToolError, ToolResult};
 
 pub struct ToolRegister {
-    tools: HashMap<&'static str , Box<dyn Tool>>,
+    tools: HashMap<String, Box<dyn Tool>>,
 }
 
 impl ToolRegister {

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use abu_base::chat::{AssistantMessage, ChatMessage, ToolCall, ToolDefinition};
 use abu_provider::ChatProvide;
 use abu_tool::ToolCallResult;
@@ -11,15 +13,6 @@ use tracing::{debug, info, warn};
 pub enum AgentControl<T> {
     Normal(T),
     Break(String),
-}
-
-impl<T> AgentControl<T> {
-    pub fn unwrap(self) -> T {
-        match self {
-            Self::Break(_) => panic!("control is break!"),
-            Self::Normal(v) => v,
-        }
-    }
 }
 
 macro_rules! extract_agent_control {
@@ -208,5 +201,23 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
         self.hooks.on_llm_end(step, &ai_message).await.context("llm end hook")?;
 
         Ok(AgentControl::Normal(ai_message))
+    }
+}
+
+impl<T> AgentControl<T> {
+    pub fn unwrap(self) -> T {
+        match self {
+            Self::Break(_) => panic!("control is break!"),
+            Self::Normal(v) => v,
+        }
+    }
+}
+
+impl<T: Display> Display for AgentControl<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Break(s) => write!(f, "agent flow break: {}", s),
+            Self::Normal(r) => write!(f, "{}", r),
+        }
     }
 }

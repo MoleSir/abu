@@ -19,6 +19,14 @@ path = "./agents/s03_todo_write.rs"
 name = "s04_subagent"
 path = "./agents/s04_subagent.rs"
 
+[[bin]]
+name = "s05_skill_loading"
+path = "./agents/s05_skill_loading.rs"
+
+[[bin]]
+name = "s07_permission_system"
+path = "./agents/s07_permission_system.rs"
+
 
 [dependencies]
 abu-agent = { path = "../../abu-agent" }

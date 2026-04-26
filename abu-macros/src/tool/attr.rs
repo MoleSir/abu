@@ -1,16 +1,20 @@
-use syn::{parse::{Parse, ParseStream}, punctuated::Punctuated, Ident, LitStr, Result, Token};
+use syn::{parse::{Parse, ParseStream}, punctuated::Punctuated, Expr, Ident, Result, Token};
 
 pub struct ToolAttr {
     pub struct_name: Ident,
-    pub name: Option<LitStr>,
-    pub description: LitStr,
+    pub name: Option<Expr>,
+    pub description: Expr,
+    pub category: Option<String>,
+    pub generics: Option<syn::Generics>, 
 }
 
 impl Parse for ToolAttr {
     fn parse(input: ParseStream) -> Result<Self> {
         let mut struct_name: Option<Ident> = None;
-        let mut name: Option<LitStr> = None;
-        let mut description: Option<LitStr> = None;
+        let mut name: Option<Expr> = None;
+        let mut description: Option<Expr> = None;
+        let mut category: Option<String> = None;
+        let mut generics: Option<syn::Generics> = None;
 
         let metas = Punctuated::<syn::Meta, Token![,]>::parse_terminated(input)?;
     
@@ -33,22 +37,24 @@ impl Parse for ToolAttr {
                                 return Err(syn::Error::new_spanned(nv.value, "expected ident"));
                             }
                         }
-                        "name" => {
-                            if let syn::Expr::Lit(expr_lit) = nv.value {
-                                if let syn::Lit::Str(lit_str) = expr_lit.lit {
-                                    name = Some(lit_str);
-                                } else {
-                                    return Err(syn::Error::new_spanned(expr_lit, "expected string"));
-                                }
+                        "name" => name = Some(nv.value),
+                        "description" => description = Some(nv.value),
+                        "category" => {
+                            if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(s), .. }) = nv.value {
+                                category = Some(s.value());
+                            } else {
+                                return Err(syn::Error::new_spanned(nv.value, "category must be a string literal"));
                             }
                         }
-                        "description" => {
-                            if let syn::Expr::Lit(expr_lit) = nv.value {
-                                if let syn::Lit::Str(lit_str) = expr_lit.lit {
-                                    description = Some(lit_str);
-                                } else {
-                                    return Err(syn::Error::new_spanned(expr_lit, "expected string"));
-                                }
+                        "generics" => {
+                            // 解析泛型字符串，例如 "P: ChatProvide, M: Memory"
+                            if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(s), .. }) = nv.value {
+                                // 我们在前后加上 <> 以便 syn 能够解析为 Generics 对象
+                                let gen_str = format!("<{}>", s.value());
+                                let code = syn::parse_str::<syn::Generics>(&gen_str)?;
+                                generics = Some(code);
+                            } else {
+                                return Err(syn::Error::new_spanned(nv.value, "generics must be a string literal"));
                             }
                         }
                         _ => {
@@ -73,6 +79,8 @@ impl Parse for ToolAttr {
             description: description.ok_or_else(|| {
                 syn::Error::new(input.span(), "description is required")
             })?,
+            category,
+            generics,
         })
     }
 }

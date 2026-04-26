@@ -56,6 +56,7 @@ impl<P: ChatProvide> SummarizationMemory<P> {
     }
 }
 
+#[async_trait::async_trait]
 impl<P: ChatProvide> Memory for SummarizationMemory<P> {
     type Error = AgentCtxError;
 

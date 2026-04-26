@@ -1,9 +1,14 @@
 pub mod tools;
 pub mod mcp;
+pub mod permission;
+pub use permission::*;
+mod subagent;
+pub use subagent::*;
+
 use std::{ffi::OsStr, path::Path};
 use abu_base::chat::ToolDefinition;
 use abu_mcp::McpTool;
-use abu_tool::{Tool, ToolCallResult, ToolError, ToolRegister};
+use abu_tool::{Tool, ToolCallResult, ToolCategory, ToolError, ToolRegister};
 use mcp::McpManager;
 use tracing::debug;
 pub use tools::*;
@@ -14,6 +19,7 @@ pub struct ToolBox {
     tools: ToolRegister,
     mcp_manager: McpManager,
     tool_definitions: Vec<ToolDefinition>,
+    permission_manager: Option<PermissionManager>,
 }
 
 impl ToolBox {
@@ -22,6 +28,21 @@ impl ToolBox {
             tools: ToolRegister::new(),
             mcp_manager: McpManager::new(),
             tool_definitions: vec![],
+            permission_manager: None,
+        }
+    }
+
+    pub fn set_permission(&mut self, pm: PermissionManager) {
+        self.permission_manager = Some(pm);
+    }
+
+    pub fn execution_mode(&self) -> Option<ExecutionMode> {
+        self.permission_manager.as_ref().map(|pm| pm.mode)
+    }
+
+    pub fn set_execution_mode(&mut self, mode: ExecutionMode) {
+        if let Some(pm) = self.permission_manager.as_mut() {
+            pm.mode = mode
         }
     }
 
@@ -61,10 +82,24 @@ impl ToolBox {
             Ok(v) => v,
         };
 
-        if self.tools.has_tool(&name) {
+
+        if let Some(tool) = self.tools.get_tool(name) {
+            if let Some(pm) = self.permission_manager.as_mut() {
+                if let Err(deny_reason) = pm.request_permission(tool.category(), name, &arguments).await {
+                    return Ok(ToolCallResult::error(format!("Permission Denied: {}", deny_reason)));
+                }
+            }
+
             let result = self.tools.execute(name, arguments).await?;
             Ok(result)
         } else if self.mcp_manager.has_tool(&name) {
+            // MCP 默认 Mutating
+            if let Some(pm) = self.permission_manager.as_mut() {
+                if let Err(deny_reason) = pm.request_permission(ToolCategory::Mutating, name, &arguments).await {
+                    return Ok(ToolCallResult::error(format!("Permission Denied: {}", deny_reason)));
+                }
+            }
+
             let result = self.mcp_manager.execute_toolcall(name, arguments).await?;
             Ok(result)
         } else {

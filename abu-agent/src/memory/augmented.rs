@@ -22,6 +22,7 @@ impl<P: ChatProvide> AugmentedMemory<P> {
     }
 }
 
+#[async_trait::async_trait]
 impl<P: ChatProvide> Memory for AugmentedMemory<P> {
     type Error = AgentCtxError;
 

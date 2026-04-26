@@ -17,8 +17,18 @@ pub fn tool_impl(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
 
     // Parse attr
     let struct_name = tool_attr.struct_name;
-    let name = tool_attr.name.map(|m| m.value()).unwrap_or_else(|| input_fn.sig.ident.to_string());
-    let description = tool_attr.description.value();
+    let name_expr = match tool_attr.name {
+        Some(expr) => quote! { #expr },
+        None => {
+            let n = input_fn.sig.ident.to_string();
+            quote! { #n }
+        }
+    };
+    let description_expr = tool_attr.description;
+    let default_generics = syn::Generics::default();
+    let (impl_generics, type_generics, where_clause) = tool_attr.generics.as_ref()
+        .map(|g| g.split_for_impl())
+        .unwrap_or_else(|| default_generics.split_for_impl());
 
     // Parse function
     let (params_info, is_associated) = parse_params(&mut input_fn);
@@ -26,12 +36,11 @@ pub fn tool_impl(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
     let return_code = generate_return_code(&input_fn, &params_info, &struct_name, is_associated);
     let parameters = generate_parameters(&params_info);
 
-    let code = if is_associated {
+    let struct_def = if is_associated {
         quote! {}
     } else {
         quote! {
             pub struct #struct_name;
-
             impl #struct_name {
                 pub fn new() -> Self {
                     Self
@@ -40,26 +49,47 @@ pub fn tool_impl(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
         }
     };
 
-    let code = quote! {
-        #code 
-
-        impl #struct_name {
-           #input_fn
+    let category_def = match tool_attr.category {
+        Some(category) => {
+            match category.as_str() {
+                "safe" => quote! { 
+                    fn category(&self) -> #abu::ToolCategory {
+                        #abu::ToolCategory::Safe 
+                    }
+                },
+                "mutating" => quote! { 
+                    fn category(&self) -> #abu::ToolCategory {
+                        #abu::ToolCategory::Mutating 
+                    }
+                },
+                _ => panic!("unsupport ToolCategory {}", category),
+            }
         }
+        None => quote! {}
+    };
+
+    let code = quote! {
+        #struct_def 
+
+        impl #impl_generics #struct_name #type_generics #where_clause {
+            #input_fn
+         }
 
         #[async_trait::async_trait]
-        impl #abu::Tool for #struct_name {
-            fn name(&self) -> &'static str {
-                #name
+        impl #impl_generics #abu::Tool for #struct_name #type_generics #where_clause {
+            fn name(&self) -> String {
+                (#name_expr).into()
             }
         
-            fn description(&self) -> &'static str {
-                #description
+            fn description(&self) -> String {
+                (#description_expr).into()
             }
 
             fn parameters(&self) -> Vec<#abu::ToolParameter> {
                 vec![ #parameters ]
             }
+
+            #category_def
 
             async fn execute(&self, args: #abu::_serde_json::Value) -> std::result::Result<#abu::ToolCallResult, #abu::ToolError> {
                 #(#args_trans_code)*

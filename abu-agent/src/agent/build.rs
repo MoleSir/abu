@@ -3,7 +3,7 @@ use abu_provider::{deepseek::DeepSeek, ChatProvide};
 use abu_skill::SkillLoader;
 use abu_tool::Tool;
 use crate::{
-    context::ContextBuilder, hook::{Hook, HookManager}, memory::{Memory, SequentialMemory}, middleware::{LlmInputMiddleware, LlmOutMiddleware, MemoryAddMiddleware, Middleware, MiddlewareManager, ToolCallMiddleware, ToolResultMiddleware}, model::{ChatConfig, ChatModel}, toolbox::tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWriter}, skill::SkillTool}, AgentResult
+    context::ContextBuilder, hook::{Hook, HookManager}, memory::{Memory, SequentialMemory}, middleware::{LlmInputMiddleware, LlmOutMiddleware, MemoryAddMiddleware, Middleware, MiddlewareManager, ToolCallMiddleware, ToolResultMiddleware}, model::{ChatConfig, ChatModel}, toolbox::{tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWriter}, skill::SkillTool}, PermissionManager, SubAgentTool}, AgentResult
 };
 use super::{Agent, AgentConfig, ToolBox};
 
@@ -22,6 +22,7 @@ pub struct AgentBuilder<P: ChatProvide = DeepSeek, M: Memory = SequentialMemory>
     pub mcpconfig_path: Option<PathBuf>,
     pub hooks: HookManager,
     pub middlewares: MiddlewareManager,
+    pub permission_manager: Option<PermissionManager>,
 }
 
 impl Default for AgentConfig {
@@ -63,12 +64,16 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
             let skill_loader = Arc::new(SkillLoader::load(skill_dir)?);
             context_builder.with_skill(skill_loader.clone());
             toolbox.add_tool(SkillTool::new(skill_loader));
-            
         }
 
         // llm init
-        self.llm.bind_tool_defines(toolbox.tool_definitions());
+        self.llm.bind_tool_defines(toolbox.tool_definitions()).await;
         self.llm.set_config(ChatConfig { temperature: Some(self.config.temperature) });
+
+        // permission
+        if let Some(permission_manager) = self.permission_manager {
+            toolbox.set_permission(permission_manager);
+        }        
 
         Ok(Agent {
             config: self.config,
@@ -91,13 +96,14 @@ impl<P: ChatProvide> AgentBuilder<P> {
             memory: SequentialMemory::default(),
             system_prompt: DEFAULT_SYSTEM_PROMPT.to_string(),
             with_skills: None,
-            with_builtin_tools: true,
+            with_builtin_tools: false,
             with_subagent: false,
             tools: vec![],
             mcpservers: vec![],
             mcpconfig_path: None,
             hooks: HookManager::new(),
             middlewares: MiddlewareManager::new(),
+            permission_manager: None,
         }
     }
 }
@@ -127,6 +133,7 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
             mcpconfig_path: self.mcpconfig_path,
             hooks: self.hooks,
             middlewares: self.middlewares,
+            permission_manager: self.permission_manager
         }
     }
 
@@ -144,6 +151,7 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
             mcpconfig_path: self.mcpconfig_path,
             hooks: self.hooks,
             middlewares: self.middlewares,
+            permission_manager: self.permission_manager
         }
     }
 
@@ -165,6 +173,11 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
     pub fn with_tool(mut self, tool: impl Tool + 'static) -> Self {
         self.tools.push(Box::new(tool));
         self
+    }
+
+    #[inline]
+    pub fn with_subagent<AP: ChatProvide + 'static, AM: Memory + 'static>(self, agent: SubAgentTool<AP, AM>) -> Self {
+        self.with_tool(agent)
     }
 
     pub fn with_hook(mut self, hook: impl Hook + 'static) -> Self {
@@ -221,6 +234,11 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
             .map(|arg| arg.into())
             .collect();
         self.mcpservers.push((cmd, args));
+        self
+    }
+
+    pub fn with_permission(mut self, permission_manager: PermissionManager) -> Self {
+        self.permission_manager = Some(permission_manager);
         self
     }
 }

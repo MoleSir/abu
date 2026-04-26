@@ -58,6 +58,7 @@ impl Anthropic {
     }
 }
 
+#[async_trait::async_trait]
 impl ChatProvide for Anthropic {
     type Error = ProvideError;
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse, ProvideError> {

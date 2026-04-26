@@ -24,6 +24,7 @@ impl DeepSeek {
     }
 }
 
+#[async_trait::async_trait]
 impl ChatProvide for DeepSeek {
     type Error = ProvideError;
     async fn chat(&self, request: &ChatRequest) -> Result<ChatResponse, ProvideError> {
