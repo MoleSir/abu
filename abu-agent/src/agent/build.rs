@@ -3,7 +3,7 @@ use abu_provider::{deepseek::DeepSeek, ChatProvide};
 use abu_skill::SkillLoader;
 use abu_tool::Tool;
 use crate::{
-    context::ContextBuilder, hook::{Hook, HookManager}, memory::{Memory, SequentialMemory}, middleware::{LlmInputMiddleware, LlmOutMiddleware, MemoryAddMiddleware, Middleware, MiddlewareManager, ToolCallMiddleware, ToolResultMiddleware}, model::{ChatConfig, ChatModel}, toolbox::{tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWriter}, skill::SkillTool}, PermissionManager, SubAgentTool}, AgentResult
+    context::ContextBuilder, hook::{Hook, HookManager}, memory::{Memory, SequentialMemory}, middleware::{LlmInputMiddleware, LlmOutMiddleware, MemoryAddMiddleware, Middleware, MiddlewareManager, SkillMiddleware, SystemPromptMiddleware, ToolCallMiddleware, ToolResultMiddleware}, model::{ChatConfig, ChatModel}, toolbox::{tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWriter}}, PermissionManager, SkillTool, SubAgentTool}, AgentResult
 };
 use super::{Agent, AgentConfig, ToolBox};
 
@@ -37,7 +37,7 @@ impl Default for AgentConfig {
 impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
     pub async fn build(mut self) -> AgentResult<Agent<C, M>> {
         let mut toolbox = ToolBox::new();
-        let mut context_builder = ContextBuilder::new(self.system_prompt);
+        let context_builder = ContextBuilder::new(self.system_prompt);
 
         // tool
         if self.with_builtin_tools {
@@ -62,7 +62,7 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
         // skill
         if let Some(skill_dir) = self.with_skills {
             let skill_loader = Arc::new(SkillLoader::load(skill_dir)?);
-            context_builder.with_skill(skill_loader.clone());
+            self.middlewares.add_system_prompt(SkillMiddleware::new(skill_loader.clone()));
             toolbox.add_tool(SkillTool::new(skill_loader));
         }
 
@@ -187,6 +187,11 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
 
     pub fn with_middleware(mut self, middleware: impl Into<Middleware>) -> Self {
         self.middlewares.add_middleware(middleware);
+        self
+    }
+
+    pub fn with_system_prompt_middleware<LM: SystemPromptMiddleware + 'static>(mut self, middleware: LM) -> Self {
+        self.middlewares.add_system_prompt(middleware);
         self
     }
 

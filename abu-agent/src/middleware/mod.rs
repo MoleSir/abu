@@ -1,12 +1,12 @@
 mod privacy;
-use std::fmt::Display;
-
+mod skill;
+pub use skill::*;
 pub use privacy::*;
 mod tool;
 pub use tool::*;
 mod sysprompt;
 pub use sysprompt::*;
-
+use std::fmt::Display;
 use abu_base::chat::{AssistantMessage, ChatMessage, ToolCall};
 use abu_tool::ToolCallResult;
 use crate::{AgentError, AgentResult};
@@ -23,7 +23,7 @@ pub enum MiddlewareFlow {
 #[async_trait::async_trait]
 pub trait SystemPromptMiddleware: Send + Sync {
     type Error: Display + Send + Sync + 'static;
-    async fn intercept(&mut self, prompt: &mut String) -> Result<(), Self::Error>;
+    async fn intercept(&mut self, prompt: &mut String) -> Result<MiddlewareFlow, Self::Error>;
 }
 
 /// Before llm generate
@@ -119,11 +119,12 @@ impl MiddlewareManager {
         Self::default()
     }
 
-    pub async fn intercept_system_prompt(&mut self, prompt: &mut String) -> AgentResult<()> {
+    pub async fn intercept_system_prompt(&mut self, prompt: &mut String) -> AgentResult<MiddlewareFlow> {
         for middleware in self.system_prompts.iter_mut() {
-            middleware.intercept(prompt).await?;
+            let flow = middleware.intercept(prompt).await?;
+            pass_middleware_flow!(flow);
         }
-        Ok(())
+        Ok(MiddlewareFlow::Continue)
     }
 
     pub async fn intercept_llm_input(&mut self, messages: &mut Vec<ChatMessage>) -> AgentResult<MiddlewareFlow> {
@@ -208,7 +209,7 @@ impl MiddlewareManager {
 
 #[async_trait::async_trait]
 pub trait DynSystemPromptMiddleware: Send + Sync {
-    async fn intercept(&mut self, prompt: &mut String) -> AgentResult<()>;
+    async fn intercept(&mut self, prompt: &mut String) -> AgentResult<MiddlewareFlow>;
 }
 
 #[async_trait::async_trait]
@@ -239,7 +240,7 @@ pub trait DynMemoryAddMiddleware: Send + Sync {
 #[async_trait::async_trait]
 impl<M: SystemPromptMiddleware> DynSystemPromptMiddleware for M {
     #[inline]
-    async fn intercept(&mut self, prompt: &mut String) -> AgentResult<()> {
+    async fn intercept(&mut self, prompt: &mut String) -> AgentResult<MiddlewareFlow> {
         let res = self
             .intercept(prompt).await
             .map_err(|e| AgentError::Middleware("system prompt", e.to_string()))?;

@@ -47,7 +47,8 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
         
         // init context
         let memories = self.search_memory(query).await.context("search memory")?;
-        let mut messages = self.build_context(query, memories).await.context("build context")?;
+        let control = self.build_context(query, memories).await.context("build context")?;
+        let mut messages = extract_agent_control!(control);
 
         // agent loop
         let mut final_result = None; 
@@ -111,7 +112,8 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
         
         // init context
         let memories = self.search_memory(query).await.context("search memory")?;
-        let mut messages = self.build_context(query, memories).await.context("build context")?;
+        let control = self.build_context(query, memories).await.context("build context")?;
+        let mut messages = extract_agent_control!(control);
         
         // chat with llm
         let control = self.llm_chat(0, &mut messages, false).await.context("chat with llm")?;
@@ -174,16 +176,26 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
         Ok(memories)
     }
 
-    async fn build_context(&mut self, query: &str, memories: Vec<ChatMessage>) -> AgentResult<Vec<ChatMessage>> {
+    async fn build_context(&mut self, query: &str, memories: Vec<ChatMessage>) -> AgentResult<AgentControl<Vec<ChatMessage>>> {
         debug!("build context");
-        let messages: Vec<ChatMessage> = self.context_builder.build(query, memories);
+
+        let mut middleware_context = String::new();
+        let flow = self.middlewares
+            .intercept_system_prompt(&mut middleware_context).await
+            .context("intercept system prompt")?;
+        return_middleware_break!(flow);
+
+        let messages: Vec<ChatMessage> = self.context_builder.assemble(memories, middleware_context, query);
         self.hooks.on_context_build(query, &messages).await.context("context build hook")?;
 
-        Ok(messages)
+        Ok(AgentControl::Normal(messages))
     }
 
     async fn llm_chat(&mut self, step: usize, messages: &mut Vec<ChatMessage>, with_tool: bool) -> AgentResult<AgentControl<AssistantMessage>> {
-        
+        let flow = self.middlewares
+            .intercept_llm_input(messages).await
+            .context("intercept llm input")?;
+        return_middleware_break!(flow);
         
         self.hooks.on_llm_start(step, messages).await.context("llm start hook")?;
 

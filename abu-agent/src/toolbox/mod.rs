@@ -1,17 +1,20 @@
 pub mod tools;
-pub mod mcp;
-pub mod permission;
-pub use permission::*;
+pub use tools::*;
+
+mod mcp;
+mod skill;
 mod subagent;
+mod permission;
+pub use permission::*;
 pub use subagent::*;
+pub use skill::*;
+pub use mcp::*;
 
 use std::{ffi::OsStr, path::Path};
 use abu_base::chat::ToolDefinition;
 use abu_mcp::McpTool;
 use abu_tool::{Tool, ToolCallResult, ToolCategory, ToolError, ToolRegister};
-use mcp::McpManager;
 use tracing::debug;
-pub use tools::*;
 
 use crate::AgentResult;
 
