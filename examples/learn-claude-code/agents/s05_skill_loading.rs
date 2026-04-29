@@ -1,5 +1,5 @@
 use std::{io::Write, path::{Path, PathBuf}, process::Stdio, sync::{mpsc, OnceLock}, thread, time::Duration};
-use abu_agent::{hook::ConsoleLoggerHook, model::ChatModel, toolbox::SubAgentTool, AgentBuilder};
+use abu_agent::{hook::ConsoleLoggerHook, model::ChatModel, tools::SubAgentTool, AgentBuilder};
 use std::process::Command;
 
 #[tokio::main]

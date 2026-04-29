@@ -2,12 +2,10 @@ pub mod tools;
 pub use tools::*;
 
 mod mcp;
-mod skill;
 mod subagent;
 mod permission;
 pub use permission::*;
 pub use subagent::*;
-pub use skill::*;
 pub use mcp::*;
 
 use std::{ffi::OsStr, path::Path};
@@ -18,14 +16,14 @@ use tracing::debug;
 
 use crate::AgentResult;
 
-pub struct ToolBox {
+pub struct ToolManager {
     tools: ToolRegister,
     mcp_manager: McpManager,
     tool_definitions: Vec<ToolDefinition>,
     permission_manager: Option<PermissionManager>,
 }
 
-impl ToolBox {
+impl ToolManager {
     pub fn new() -> Self {
         Self {
             tools: ToolRegister::new(),

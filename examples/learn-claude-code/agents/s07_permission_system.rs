@@ -1,5 +1,5 @@
 use std::{io::Write, path::{Path, PathBuf}, process::Stdio, sync::{mpsc, OnceLock}, thread, time::Duration};
-use abu_agent::{hook::ConsoleLoggerHook, model::ChatModel, toolbox::{ExecutionMode, Matcher, PermissionManager, UserAuthorizer, UserResponse}, AgentBuilder};
+use abu_agent::{hook::ConsoleLoggerHook, model::ChatModel, tools::{ExecutionMode, Matcher, PermissionManager, UserAuthorizer, UserResponse}, AgentBuilder};
 use std::process::Command;
 
 #[tokio::main]
@@ -40,7 +40,7 @@ async fn result_main() -> anyhow::Result<()> {
             break;
         }
         if query == "/mode" {
-            println!("{:?}", agent.toolbox.execution_mode().unwrap());
+            println!("{:?}", agent.tools.execution_mode().unwrap());
             continue;
         }
         

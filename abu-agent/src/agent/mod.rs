@@ -11,7 +11,7 @@ use crate::hook::HookManager;
 use crate::memory::Memory;
 use crate::middleware::MiddlewareManager;
 use crate::model::ChatModel;
-use crate::toolbox::ToolBox;
+use crate::tool::ToolManager;
 
 #[derive(Clone)]
 pub struct AgentConfig {
@@ -24,7 +24,7 @@ pub struct Agent<P: ChatProvide, M: Memory> {
     pub llm: ChatModel<P>,
     pub memory: M,
     pub context_builder: ContextBuilder,
-    pub toolbox: ToolBox,
+    pub tools: ToolManager,
     pub hooks: HookManager,
     pub middlewares: MiddlewareManager,
 }

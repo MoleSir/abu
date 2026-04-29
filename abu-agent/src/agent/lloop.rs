@@ -34,7 +34,7 @@ macro_rules! return_middleware_break {
 
 impl<C: ChatProvide, M: Memory> Agent<C, M> {
     pub fn tool_list(&self) -> &[ToolDefinition] {
-        self.toolbox.tool_definitions()
+        self.tools.tool_definitions()
     }
 
     pub fn system_prompt(&self) -> &str {
@@ -133,7 +133,7 @@ impl<C: ChatProvide, M: Memory> Agent<C, M> {
         
         self.hooks.on_tool_start(step, tool_call).await.context("tool start hook")?;
 
-        let mut result = self.toolbox.execute_tool(&tool_call.name, &tool_call.arguments).await.context("execute tool")?;
+        let mut result = self.tools.execute_tool(&tool_call.name, &tool_call.arguments).await.context("execute tool")?;
 
         let flow = self.middlewares
             .intercept_tool_result(&tool_call.name, &mut result)

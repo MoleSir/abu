@@ -3,9 +3,9 @@ use abu_provider::{deepseek::DeepSeek, ChatProvide};
 use abu_skill::SkillLoader;
 use abu_tool::Tool;
 use crate::{
-    context::ContextBuilder, hook::{Hook, HookManager}, memory::{Memory, SequentialMemory}, middleware::{LlmInputMiddleware, LlmOutMiddleware, MemoryAddMiddleware, Middleware, MiddlewareManager, SkillMiddleware, SystemPromptMiddleware, ToolCallMiddleware, ToolResultMiddleware}, model::{ChatConfig, ChatModel}, toolbox::{tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWriter}}, PermissionManager, SkillTool, SubAgentTool}, AgentResult
+    context::ContextBuilder, extension::{SkillMiddleware, SkillTool}, hook::{Hook, HookManager}, memory::{Memory, SequentialMemory}, middleware::{LlmInputMiddleware, LlmOutMiddleware, MemoryAddMiddleware, Middleware, MiddlewareManager, SystemPromptMiddleware, ToolCallMiddleware, ToolResultMiddleware}, model::{ChatConfig, ChatModel}, tool::{tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWriter}}, PermissionManager, SubAgentTool}, AgentResult
 };
-use super::{Agent, AgentConfig, ToolBox};
+use super::{Agent, AgentConfig, ToolManager};
 
 const DEFAULT_SYSTEM_PROMPT: &str = "You are an agent.";
 
@@ -36,50 +36,50 @@ impl Default for AgentConfig {
 
 impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
     pub async fn build(mut self) -> AgentResult<Agent<C, M>> {
-        let mut toolbox = ToolBox::new();
+        let mut tools = ToolManager::new();
         let context_builder = ContextBuilder::new(self.system_prompt);
 
         // tool
         if self.with_builtin_tools {
-            toolbox.add_tool(Bash::new());
-            toolbox.add_tool(Calculator::new());
-            toolbox.add_tool(FileCreator::new());
-            toolbox.add_tool(FileWriter::new());
-            toolbox.add_tool(FileReader::new());
+            tools.add_tool(Bash::new());
+            tools.add_tool(Calculator::new());
+            tools.add_tool(FileCreator::new());
+            tools.add_tool(FileWriter::new());
+            tools.add_tool(FileReader::new());
         }
         for tool in self.tools {
-            toolbox.add_tool_box(tool);
+            tools.add_tool_box(tool);
         }
 
         // mcp
         if let Some(path) = self.mcpconfig_path {
-            toolbox.load_mcpconfig(&path).await?;
+            tools.load_mcpconfig(&path).await?;
         }
         for (cmd, args) in self.mcpservers {
-            toolbox.add_mcp_server(&cmd, &args).await?;
+            tools.add_mcp_server(&cmd, &args).await?;
         }
 
         // skill
         if let Some(skill_dir) = self.with_skills {
             let skill_loader = Arc::new(SkillLoader::load(skill_dir)?);
             self.middlewares.add_system_prompt(SkillMiddleware::new(skill_loader.clone()));
-            toolbox.add_tool(SkillTool::new(skill_loader));
+            tools.add_tool(SkillTool::new(skill_loader));
         }
 
         // llm init
-        self.llm.bind_tool_defines(toolbox.tool_definitions()).await;
+        self.llm.bind_tool_defines(tools.tool_definitions()).await;
         self.llm.set_config(ChatConfig { temperature: Some(self.config.temperature) });
 
         // permission
         if let Some(permission_manager) = self.permission_manager {
-            toolbox.set_permission(permission_manager);
+            tools.set_permission(permission_manager);
         }        
 
         Ok(Agent {
             config: self.config,
             llm: self.llm,
             memory: self.memory,
-            toolbox,
+            tools,
             context_builder,
             hooks: self.hooks,
             middlewares: self.middlewares,

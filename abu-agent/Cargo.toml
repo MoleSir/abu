@@ -28,6 +28,7 @@ meval = { workspace = true }
 colored = { workspace = true }
 chrono = { workspace = true }
 regex = { workspace = true }
+uuid = { workspace = true }
 
 
 [dev-dependencies]

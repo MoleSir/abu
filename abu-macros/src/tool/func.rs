@@ -134,7 +134,7 @@ pub fn generate_parameter(param: &Param) -> proc_macro2::TokenStream {
     let mut code = quote! {
         #abu::ToolParameter {
             name: #name.to_string(),
-            required: false,
+            required: true,
             description: None,
             kind: <#typ as #abu::ToolArgument>::parameter_kind(),
         }
@@ -145,7 +145,7 @@ pub fn generate_parameter(param: &Param) -> proc_macro2::TokenStream {
     }
 
     if let Some(_) = &param.default {
-        code = quote! { #code.required(true) }
+        code = quote! { #code.required(false) }
     }
 
     code
