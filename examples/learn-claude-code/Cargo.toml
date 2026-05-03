@@ -24,8 +24,16 @@ name = "s05_skill_loading"
 path = "./agents/s05_skill_loading.rs"
 
 [[bin]]
+name = "s06_context_compact"
+path = "./agents/s06_context_compact.rs"
+
+[[bin]]
 name = "s07_permission_system"
 path = "./agents/s07_permission_system.rs"
+
+[[bin]]
+name = "s08_hook_system"
+path = "./agents/s08_hook_system.rs"
 
 [[bin]]
 name = "s09_memory_system"

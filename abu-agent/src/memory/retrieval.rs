@@ -1,6 +1,7 @@
 use abu_base::chat::ChatMessage;
 use abu_provider::EmbedProvide;
 use abu_rag::{embed::{EmbedError, Embedder}, vectordb::{FlatL2Index, InMemoryStorage, VectorDB, VectorDBError, VectorId}};
+
 use super::Memory;
 
 pub struct RetrievalMemory<P> {

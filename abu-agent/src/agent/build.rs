@@ -3,16 +3,27 @@ use abu_provider::{deepseek::DeepSeek, ChatProvide};
 use abu_skill::SkillLoader;
 use abu_tool::Tool;
 use crate::{
-    context::ContextBuilder, extension::{SkillMiddleware, SkillTool}, hook::{Hook, HookManager}, memory::{Memory, SequentialMemory}, middleware::{LlmInputMiddleware, LlmOutMiddleware, MemoryAddMiddleware, Middleware, MiddlewareManager, SystemPromptMiddleware, ToolCallMiddleware, ToolResultMiddleware}, model::{ChatConfig, ChatModel}, tool::{tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWriter}}, PermissionManager, SubAgentTool}, AgentResult
+    compact::{ContextCompact, NoContextCompact}, 
+    extension::{SkillMiddleware, SkillTool}, hook::{Hook, HookManager}, 
+    memory::{Memory, NoMemory}, 
+    middleware::{LlmInputMiddleware, LlmOutMiddleware, MemoryAddMiddleware, Middleware, MiddlewareManager, SystemPromptMiddleware, ToolCallMiddleware, ToolResultMiddleware}, 
+    model::{ChatConfig, ChatModel}, 
+    tool::{
+        tools::{bash::Bash, calculate::Calculator, fs::{FileCreator, FileReader, FileWriter}}, 
+        PermissionManager, 
+        SubAgentTool
+    }, 
+    AgentResult
 };
 use super::{Agent, AgentConfig, ToolManager};
 
 const DEFAULT_SYSTEM_PROMPT: &str = "You are an agent.";
 
-pub struct AgentBuilder<P: ChatProvide = DeepSeek, M: Memory = SequentialMemory> {
+pub struct AgentBuilder<P: ChatProvide = DeepSeek, M: Memory = NoMemory, C: ContextCompact = NoContextCompact> {
     pub llm: ChatModel<P>,
     pub config: AgentConfig,
     pub memory: M,
+    pub compact: C,
     pub system_prompt: String,
     pub with_skills: Option<PathBuf>,
     pub with_builtin_tools: bool,
@@ -34,10 +45,9 @@ impl Default for AgentConfig {
     }
 }
 
-impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
-    pub async fn build(mut self) -> AgentResult<Agent<C, M>> {
+impl<P: ChatProvide, M: Memory, C: ContextCompact> AgentBuilder<P, M, C> {
+    pub async fn build(mut self) -> AgentResult<Agent<P, M, C>> {
         let mut tools = ToolManager::new();
-        let context_builder = ContextBuilder::new(self.system_prompt);
 
         // tool
         if self.with_builtin_tools {
@@ -76,11 +86,13 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
         }        
 
         Ok(Agent {
+            session: vec![],
+            system_prompt: self.system_prompt,
             config: self.config,
             llm: self.llm,
             memory: self.memory,
+            compact: self.compact,
             tools,
-            context_builder,
             hooks: self.hooks,
             middlewares: self.middlewares,
         })
@@ -93,7 +105,8 @@ impl<P: ChatProvide> AgentBuilder<P> {
         Self {
             llm,
             config: AgentConfig::default(),
-            memory: SequentialMemory::default(),
+            memory: NoMemory,
+            compact: NoContextCompact,
             system_prompt: DEFAULT_SYSTEM_PROMPT.to_string(),
             with_skills: None,
             with_builtin_tools: false,
@@ -108,7 +121,7 @@ impl<P: ChatProvide> AgentBuilder<P> {
     }
 }
 
-impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
+impl<P: ChatProvide, M: Memory, C: ContextCompact> AgentBuilder<P, M, C> {
     pub fn temperature(mut self, temperature: f64) -> Self {
         self.config.temperature = temperature;
         self
@@ -119,10 +132,11 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
         self
     }
 
-    pub fn memory<NM: Memory>(self, memory: NM) -> AgentBuilder<C, NM> {
+    pub fn memory<NM: Memory>(self, memory: NM) -> AgentBuilder<P, NM, C> {
         AgentBuilder {
             memory,
             llm: self.llm,
+            compact: self.compact,
             config: self.config,
             system_prompt: self.system_prompt,
             with_skills: self.with_skills,
@@ -137,10 +151,30 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
         }
     }
 
-    pub fn llm<NC: ChatProvide>(self, llm: ChatModel<NC>) -> AgentBuilder<NC, M> {
+    pub fn llm<NP: ChatProvide>(self, llm: ChatModel<NP>) -> AgentBuilder<NP, M, C> {
         AgentBuilder {
             memory: self.memory,
             llm,
+            compact: self.compact,
+            config: self.config,
+            system_prompt: self.system_prompt,
+            with_skills: self.with_skills,
+            with_builtin_tools: self.with_builtin_tools,
+            with_subagent: self.with_subagent,
+            tools: self.tools,
+            mcpservers: self.mcpservers,
+            mcpconfig_path: self.mcpconfig_path,
+            hooks: self.hooks,
+            middlewares: self.middlewares,
+            permission_manager: self.permission_manager
+        }
+    }
+
+    pub fn compact<NC: ContextCompact>(self, compact: NC) -> AgentBuilder<P, M, NC> {
+        AgentBuilder {
+            memory: self.memory,
+            llm: self.llm,
+            compact,
             config: self.config,
             system_prompt: self.system_prompt,
             with_skills: self.with_skills,
@@ -176,7 +210,7 @@ impl<C: ChatProvide, M: Memory> AgentBuilder<C, M> {
     }
 
     #[inline]
-    pub fn with_subagent<AP: ChatProvide + 'static, AM: Memory + 'static>(self, agent: SubAgentTool<AP, AM>) -> Self {
+    pub fn with_subagent<AP: ChatProvide + 'static, AM: Memory + 'static, AC: ContextCompact + 'static>(self, agent: SubAgentTool<AP, AM, AC>) -> Self {
         self.with_tool(agent)
     }
 

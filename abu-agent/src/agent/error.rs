@@ -15,11 +15,14 @@ pub enum AgentError {
     #[error(transparent)]
     Skill(#[from] SkillError),
 
-    #[error(transparent)]
-    Memory(Box<dyn std::error::Error + 'static + Send + Sync>),
+    #[error("memory error: {0}")]
+    Memory(String),
 
-    #[error(transparent)]
-    Hook(Box<dyn std::error::Error + 'static + Send + Sync>),
+    #[error("hook error: {0}")]
+    Hook(String),
+
+    #[error("compact error: {0}")]
+    Compact(String),
 
     #[error("when {0} error {1}")]
     Middleware(&'static str, String),
@@ -37,7 +40,7 @@ pub enum AgentError {
     UnsupportTool(String),
 
     #[error("chat provide error: {0}")]
-    ChatProvider(Box<dyn std::error::Error + Sync + Send + 'static>),
+    ChatProvider(String),
 
     #[error(transparent)]
     EnvVar(#[from] std::env::VarError),

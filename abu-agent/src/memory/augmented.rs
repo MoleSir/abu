@@ -1,22 +1,20 @@
-use abu_base::chat::{ChatMessage, ChatRequestBuilder};
+use abu_base::chat::ChatMessage;
 use abu_provider::ChatProvide;
 use tracing::debug;
-use crate::{AgentCtxError, AgentError};
-use super::{Memory, SliceWindowMemory};
+use crate::{model::ChatModel, AgentError};
 
-pub struct AugmentedMemory<P> {
-    llm: P,
-    model: String,
-    recent_memory: SliceWindowMemory,
+use super::Memory;
+
+pub struct AugmentedMemory<P: ChatProvide> {
+    llm: ChatModel<P>,
+    /// 存储提炼出的长期事实
     memory_tokens: Vec<String>,
 }
 
 impl<P: ChatProvide> AugmentedMemory<P> {
-    pub fn new(llm: P, model: impl Into<String>, window_size: usize) -> Self {
+    pub fn new(llm: ChatModel<P>) -> Self {
         Self { 
             llm,
-            model: model.into(),
-            recent_memory: SliceWindowMemory::new(window_size),
             memory_tokens: vec![] 
         }
     }
@@ -24,54 +22,64 @@ impl<P: ChatProvide> AugmentedMemory<P> {
 
 #[async_trait::async_trait]
 impl<P: ChatProvide> Memory for AugmentedMemory<P> {
-    type Error = AgentCtxError;
+    type Error = AgentError; // 假设使用你定义的 AgentError
 
     async fn add(&mut self, user_input: &str, ai_response: &str) -> Result<(), Self::Error> {
-        self.recent_memory.add(user_input, ai_response).await.expect("recent_memory error");
-        
-
+        // 1. 构造提炼 Prompt
         let fact_extraction_prompt = format!(
-            "Analyze the following conversation turn. Does it contain a core fact, preference, or decision that should be remembered long-term? \
-             Examples include user preferences ('I hate flying'), key decisions ('The budget is $1000'), or important facts ('My user ID is 12345').\n\n\
+            "Analyze the following conversation turn and extract any CORE facts, user preferences, or project-specific decisions.\n\n\
+             Guidelines:\n\
+             - Extract user preferences (e.g., 'prefers Python over Rust')\n\
+             - Extract project facts (e.g., 'API endpoint is v1/auth')\n\
+             - If no new important information is found, respond ONLY with 'NONE'.\n\n\
              Conversation Turn:\nUser: {user_input}\nAI: {ai_response}\n\n\
-             If it contains such a fact, state the fact concisely in one sentence. Otherwise, respond with 'No important fact.'"
+             Concise Fact:"
         );
 
-        let request = ChatRequestBuilder::default()
-            .model(&self.model)
-            .messages(vec![
-                ChatMessage::system("You are a fact-extraction expert."),
-                ChatMessage::user(fact_extraction_prompt),
-            ])
-            .build()?;
-        
+        // 2. 调用 LLM 进行提炼
+        let messages = vec![
+            ChatMessage::system("You are a knowledge extraction assistant. You only output concise facts or 'NONE'."),
+            ChatMessage::user(fact_extraction_prompt),
+        ];
+
+        // 这里假设 ChatModel 有直接 chat 的方法
         let response = self.llm
-            .chat(&request).await
-            .map_err(|e| AgentError::ChatProvider(Box::new(e)))?
+            .chat_no_tools(&messages).await
+            .map_err(|e| AgentError::ChatProvider(e.to_string()))?
             .message;
 
-        // lowcase?
-        if !response.content.contains("No important fact") {
-            let extracted_fact = response.content;
-            debug!("--- [Memory Augmentation: New memory token created: '{}'] ---", extracted_fact);
-            self.memory_tokens.push(extracted_fact);
+        let content = response.content.trim();
+
+        // 3. 如果有新事实，则保存
+        if !content.is_empty() && content.to_uppercase() != "NONE" {
+            debug!(fact = %content, "🧠 New long-term memory extracted");
+            self.memory_tokens.push(content.to_string());
         }
 
         Ok(())
     }
     
-    async fn search(&self, query: &str) -> Result<Vec<ChatMessage>, Self::Error> {
-        let recent_context = self.recent_memory.search(query).await.expect("recent_memory error");
-        let mut context = vec![
-            ChatMessage::user(format!("### Key Memory Tokens (Long-Term Facts):\n{}\n\n", self.memory_tokens.join("\n"))),
-            ChatMessage::user("### Recent Conversation:\n")
-        ];
-        context.extend(recent_context);
-        Ok(context)
+    async fn search(&self, _query: &str) -> Result<Vec<ChatMessage>, Self::Error> {
+        // 如果没有记忆，直接返回空
+        if self.memory_tokens.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // 将所有事实汇总成一条系统消息或者一条带有背景知识的用户消息
+        // 建议作为一条 System 消息的一部分，告知 Agent 之前记住的事实
+        let mut facts_block = String::from("### Known Facts & User Preferences:\n");
+        for (i, fact) in self.memory_tokens.iter().enumerate() {
+            facts_block.push_str(&format!("{}. {}\n", i + 1, fact));
+        }
+
+        // 包装成 ChatMessage
+        // 这里推荐使用 System 角色，这样它会被 AgentContext 组装到 System Prompt 之后
+        Ok(vec![
+            ChatMessage::system(facts_block)
+        ])
     }
 
     async fn clear(&mut self) -> Result<(), Self::Error> {
-        self.recent_memory.clear().await.expect("rec mem err");
         self.memory_tokens.clear();
         Ok(())
     }

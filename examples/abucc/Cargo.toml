@@ -1,0 +1,22 @@
+[package]
+name = "abucc"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+abu-agent = { path = "../../abu-agent" }
+abu-provider = { path = "../../abu-provider" }
+abu-tool = { path = "../../abu-tool" }
+abu-macros = { path = "../../abu-macros" }
+
+tokio = { version = "1.49", features = ["macros", "rt-multi-thread", "fs"] }
+anyhow = "1.0"
+dotenv = "0.15.0"
+async-trait = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing-subscriber = "0.3.23"
+walkdir = "2.5.0"
+regex = "1.12.3"
+uuid = "1.23.1"
+chrono = { version = "0.4", features = ["serde"] }

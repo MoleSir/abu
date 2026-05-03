@@ -1,4 +1,6 @@
 mod consolelog;
+use std::fmt::Display;
+
 pub use consolelog::*;
 mod auditfilelog;
 pub use auditfilelog::*;
@@ -48,7 +50,7 @@ pub enum HookEvent<'a> {
 
 #[async_trait::async_trait]
 pub trait Hook: Send + Sync {
-    type Error: std::error::Error + Send + Sync + 'static;
+    type Error: Display + Send + Sync + 'static;
     async fn on_event(&self, event: &HookEvent<'_>) -> Result<(), Self::Error>;
 }
 
@@ -205,6 +207,6 @@ impl<H: Hook> HookWrap for H {
     async fn on_event(&self, event: &HookEvent<'_>) -> Result<(), AgentError> {
         self
             .on_event(event).await
-            .map_err(|e| AgentError::Hook(Box::new(e)))
+            .map_err(|e| AgentError::Hook(e.to_string()))
     }
 }

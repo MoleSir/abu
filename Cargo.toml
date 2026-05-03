@@ -31,7 +31,7 @@ abu-agent = { path = "./abu-agent", package = "abu-agent", version = "0.2.0" }
 abu-macros = { path = "./abu-macros", package = "abu-macros", version = "0.2.0" }
 
 thiserror = "2.0"
-thiserrorctx = "1.0"
+thiserrorctx = "2.0"
 tokio = "1.49"
 async-trait = "0.1"
 derive_builder = "0.20.2"

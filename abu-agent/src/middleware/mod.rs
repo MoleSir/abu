@@ -49,7 +49,7 @@ pub trait ToolCallMiddleware: Send + Sync {
 #[async_trait::async_trait]
 pub trait ToolResultMiddleware: Send + Sync {
     type Error: Display + Send + Sync + 'static;
-    async fn intercept(&mut self, tool_name: &str, result: &mut ToolCallResult) -> Result<MiddlewareFlow, Self::Error>;
+    async fn intercept(&mut self, tool_call: &ToolCall, result: &mut ToolCallResult) -> Result<MiddlewareFlow, Self::Error>;
 }
 
 /// Before add memory
@@ -149,9 +149,9 @@ impl MiddlewareManager {
         Ok(MiddlewareFlow::Continue)
     }
 
-    pub async fn intercept_tool_result(&mut self, tool_name: &str, result: &mut ToolCallResult) -> AgentResult<MiddlewareFlow> {
+    pub async fn intercept_tool_result(&mut self, tool_call: &ToolCall, result: &mut ToolCallResult) -> AgentResult<MiddlewareFlow> {
         for middleware in self.tool_results.iter_mut() {
-            let flow = middleware.intercept(tool_name, result).await?;
+            let flow = middleware.intercept(tool_call, result).await?;
             pass_middleware_flow!(flow);
         }
         Ok(MiddlewareFlow::Continue)
@@ -227,7 +227,7 @@ pub trait DynToolCallMiddleware: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait DynToolResultMiddleware: Send + Sync {
-    async fn intercept(&mut self, tool_name: &str, result: &mut ToolCallResult) -> AgentResult<MiddlewareFlow>;
+    async fn intercept(&mut self, tool_call: &ToolCall, result: &mut ToolCallResult) -> AgentResult<MiddlewareFlow>;
 }
 
 #[async_trait::async_trait]
@@ -282,9 +282,9 @@ impl<M: ToolCallMiddleware> DynToolCallMiddleware for M {
 #[async_trait::async_trait]
 impl<M: ToolResultMiddleware> DynToolResultMiddleware for M {
     #[inline]
-    async fn intercept(&mut self, tool_name: &str, result: &mut ToolCallResult) -> AgentResult<MiddlewareFlow> {
+    async fn intercept(&mut self, tool_call: &ToolCall, result: &mut ToolCallResult) -> AgentResult<MiddlewareFlow> {
         let res = self
-            .intercept(tool_name, result).await
+            .intercept(tool_call, result).await
             .map_err(|e| AgentError::Middleware("tool result", e.to_string()))?;
         Ok(res)
     }

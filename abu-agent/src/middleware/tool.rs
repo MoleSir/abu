@@ -112,7 +112,7 @@ impl ResultTruncatorMiddleware {
 impl ToolResultMiddleware for ResultTruncatorMiddleware {
     type Error = Infallible;
 
-    async fn intercept(&mut self, _tool_name: &str, result: &mut ToolCallResult) -> Result<MiddlewareFlow, Self::Error> {
+    async fn intercept(&mut self, _tool_call: &ToolCall, result: &mut ToolCallResult) -> Result<MiddlewareFlow, Self::Error> {
         let current_len = result.context.chars().count();
 
         if current_len > self.max_length {
