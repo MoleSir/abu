@@ -1,5 +1,6 @@
 use std::{io::Write, path::{Path, PathBuf}, process::Stdio, sync::{mpsc, OnceLock}, thread, time::Duration};
-use abu_agent::{hook::ConsoleLoggerHook, model::ChatModel, AgentBuilder};
+use abu_agent::{hook::ConsoleLoggerHook, middleware::{MiddlewareFlow, SystemPromptMiddleware}, model::ChatModel, AgentBuilder};
+use chrono::Utc;
 use std::process::Command;
 
 #[tokio::main]
@@ -11,19 +12,22 @@ async fn main() {
 
 async fn result_main() -> anyhow::Result<()> {    
     dotenv::from_filename(".env")?;
+    let builder = SystemPromptBuilder::new("./workspace")?;
     let model = ChatModel::deepseek("deepseek-chat")?;
     let cur_path = std::env::current_dir()?;
     println!("{:?}",cur_path);
     let mut agent = AgentBuilder::new(model)
-        .system_prompt(format!("You are a coding agent at {:?}. Use bash to inspect and change the workspace. Act first, then report clearly.", cur_path))
+        .system_prompt("")
+        .with_system_prompt_middleware(builder)
         .with_hook(ConsoleLoggerHook::new())
         .with_tool(Bash::new())
         .with_tool(ReadFile::new())
         .with_tool(WriteFile::new())
+        .with_skills("./skills")
         .build().await?;
 
     loop {
-        print!("s08 >> ");
+        print!("s10 >> ");
         std::io::stdout().flush()?;
         
         let mut query = String::new();
@@ -37,6 +41,92 @@ async fn result_main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+// ====================================================================== //
+//                      SystemPromptBuilder
+// ====================================================================== //
+
+#[async_trait::async_trait]
+impl SystemPromptMiddleware for SystemPromptBuilder {
+    type Error = anyhow::Error;
+    async fn intercept(&mut self, prompt: &mut String) -> Result<MiddlewareFlow, Self::Error> {
+        let sys_prompt = self.build()?;
+        prompt.push_str(&sys_prompt);
+        Ok(MiddlewareFlow::Continue)
+    }
+}
+
+pub struct SystemPromptBuilder {
+    pub workdir: PathBuf,
+}
+
+impl SystemPromptBuilder {
+    pub fn new<P: Into<PathBuf>>(workdir: P) -> anyhow::Result<Self> {
+        let workdir = workdir.into(); 
+        Ok(Self { workdir })
+    }
+
+    pub fn build(&self) -> anyhow::Result<String> {
+        let mut sections = vec![];
+        sections.push(self.build_core());
+        sections.push(self.build_claude_md()?);
+        sections.push(self.build_dynamic_context()?);
+        
+        Ok(sections.join("\n\n"))
+    }
+
+    fn build_core(&self) -> String {
+        format!(r#"
+You are a coding agent operating in {:?}.
+Use the provided tools to explore, reada and write files.
+Always verify before assuming. Prefer reading files over guessing."#, self.workdir)
+    }
+
+    /// Load CLAUDE.md files in priority order (all are included):
+    /// 1. ~/.claude/CLAUDE.md (user-global instructions)
+    /// 2. <project-root>/CLAUDE.md (project instructions)
+    /// 3. <current-subdir>/CLAUDE.md (directory-specific instructions)
+    fn build_claude_md(&self) -> anyhow::Result<String> {
+        let mut sources = vec![];
+
+        // User-global
+        let user_claude = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("no home dir"))?;
+        if user_claude.exists() {
+            let user_claude_content = std::fs::read_to_string(&user_claude)?;
+            sources.push((user_claude, user_claude_content));
+        }
+
+        // Project root
+        let project_claude = self.workdir.join("CLAUDE.md");
+        if project_claude.exists() {
+            let project_claude_content = std::fs::read_to_string(&project_claude)?;
+            sources.push((project_claude, project_claude_content));
+        }
+
+        if sources.is_empty() {
+            return Ok("".to_string())
+        }
+
+        let mut parts = vec!["# CLAUDE.md instructions".to_string()];
+        for (label, content) in sources {
+            parts.push(format!("## From {label:?}"));
+            parts.push(content);
+        }
+
+        Ok(parts.join("\n\n"))
+    }
+
+    fn build_dynamic_context(&self) -> anyhow::Result<String> {
+        let lines = vec![
+            "# Dynamic context\n".to_string(),
+            format!("Current date: {}", Utc::now()),
+            format!("Working directory: {:?}", self.workdir),
+            format!("Platform: Linux"),
+        ];
+        Ok(lines.join("\n"))
+    }
+
 }
 
 // ====================================================================== //

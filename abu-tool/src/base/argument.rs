@@ -16,6 +16,10 @@ impl ToolArgument for i64 {
     fn parameter_kind() -> ToolParameterKind { ToolParameterKind::Integer }
 }
 
+impl ToolArgument for u64 {
+    fn parameter_kind() -> ToolParameterKind { ToolParameterKind::Integer }
+}
+
 impl ToolArgument for usize {
     fn parameter_kind() -> ToolParameterKind { ToolParameterKind::Integer }
 }
@@ -25,6 +29,18 @@ impl ToolArgument for f64 {
 }
 
 impl ToolArgument for i32 {
+    fn parameter_kind() -> ToolParameterKind { ToolParameterKind::Integer }
+}
+
+impl ToolArgument for u32 {
+    fn parameter_kind() -> ToolParameterKind { ToolParameterKind::Integer }
+}
+
+impl ToolArgument for i8 {
+    fn parameter_kind() -> ToolParameterKind { ToolParameterKind::Integer }
+}
+
+impl ToolArgument for u8 {
     fn parameter_kind() -> ToolParameterKind { ToolParameterKind::Integer }
 }
 

@@ -1,5 +1,5 @@
 use std::{collections::HashMap, fs::OpenOptions, io::Write, path::{Path, PathBuf}, process::Stdio, sync::{mpsc, Arc, OnceLock}, thread, time::Duration};
-use abu_agent::{hook::ConsoleLoggerHook, memory::SequentialMemory, middleware::{LlmInputMiddleware, MiddlewareFlow}, model::ChatModel, Agent, AgentBuilder};
+use abu_agent::{compact::NoContextCompact, hook::ConsoleLoggerHook, memory::NoMemory, middleware::{LlmInputMiddleware, MiddlewareFlow}, model::ChatModel, Agent, AgentBuilder};
 use abu_provider::{chat::ChatMessage, deepseek::DeepSeek};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -303,7 +303,7 @@ impl TeammateManager {
         }
     }
 
-    async fn new_agent(&self, name: &str, role: &str) -> anyhow::Result<Agent<DeepSeek, SequentialMemory>> {
+    async fn new_agent(&self, name: &str, role: &str) -> anyhow::Result<Agent<DeepSeek, NoMemory, NoContextCompact>> {
         let model = ChatModel::deepseek("deepseek-chat")?;
         let cur_path = std::env::current_dir()?;
         let system_prompt = format!("You are '{name}', role: {role}, at {cur_path:?}. Use send_message to communicate. Complete your task.");
@@ -469,19 +469,18 @@ fn get_workdir() -> &'static PathBuf {
 /// 解析并验证路径，防止目录穿越 (Directory Traversal)
 fn safe_path<P: AsRef<Path>>(p: P) -> anyhow::Result<PathBuf> {
     let workdir = get_workdir();
-    let mut path = workdir.clone();
+    let p = p.as_ref();
 
-    use std::path::Component;
-    for component in p.as_ref().components() {
-        match component {
-            Component::ParentDir => { path.pop(); },
-            Component::Normal(c) => { path.push(c); }
-            Component::RootDir | Component::Prefix(_) | Component::CurDir => {}
-        }
-    }
+    let path = if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        workdir.join(p)
+    };
+
+    let path = path.canonicalize()?; // 解析符号链接等
 
     if !path.starts_with(workdir) {
-        anyhow::bail!("Path escapes workspace: {:?}", p.as_ref())
+        anyhow::bail!("Path escapes workspace: {:?}", p);
     }
 
     Ok(path)

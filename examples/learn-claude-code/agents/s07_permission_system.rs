@@ -1,5 +1,5 @@
 use std::{io::Write, path::{Path, PathBuf}, process::Stdio, sync::{mpsc, OnceLock}, thread, time::Duration};
-use abu_agent::{hook::ConsoleLoggerHook, model::ChatModel, tools::{ExecutionMode, Matcher, PermissionManager, UserAuthorizer, UserResponse}, AgentBuilder};
+use abu_agent::{hook::ConsoleLoggerHook, model::ChatModel, tool::{ExecutionMode, Matcher, PermissionManager, UserAuthorizer, UserResponse}, AgentBuilder};
 use std::process::Command;
 
 #[tokio::main]
@@ -88,19 +88,18 @@ fn get_workdir() -> &'static PathBuf {
 /// 解析并验证路径，防止目录穿越 (Directory Traversal)
 fn safe_path<P: AsRef<Path>>(p: P) -> anyhow::Result<PathBuf> {
     let workdir = get_workdir();
-    let mut path = workdir.clone();
+    let p = p.as_ref();
 
-    use std::path::Component;
-    for component in p.as_ref().components() {
-        match component {
-            Component::ParentDir => { path.pop(); },
-            Component::Normal(c) => { path.push(c); }
-            Component::RootDir | Component::Prefix(_) | Component::CurDir => {}
-        }
-    }
+    let path = if p.is_absolute() {
+        p.to_path_buf()
+    } else {
+        workdir.join(p)
+    };
+
+    let path = path.canonicalize()?; // 解析符号链接等
 
     if !path.starts_with(workdir) {
-        anyhow::bail!("Path escapes workspace: {:?}", p.as_ref())
+        anyhow::bail!("Path escapes workspace: {:?}", p);
     }
 
     Ok(path)

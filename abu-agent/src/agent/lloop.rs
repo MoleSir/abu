@@ -120,10 +120,12 @@ impl<P: ChatProvide, M: Memory, C: ContextCompact> Agent<P, M, C> {
         self.hooks.on_memory_search(query, &memory).await.context("memory search hook")?;
 
         // 3. 组装
+        let mut session = self.session.clone();
+        session.push(ChatMessage::user(query));
         let context = AgentContext {
             system_prompt,
             memory,
-            session: self.session.clone(),
+            session,
         };
 
         Ok(AgentControl::Normal(context))
