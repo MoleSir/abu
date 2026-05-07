@@ -144,14 +144,14 @@ pub struct MemoryManager {
 }
 
 impl MemoryManager {
-    pub fn new<P: Into<PathBuf>>(memory_dir: P) -> Self {
+    pub fn new<P: Into<PathBuf>>(memory_dir: P) -> anyhow::Result<Self> {
         let memory_dir = memory_dir.into();
         let mut manager = Self {
             memory_dir,
             memories: HashMap::new(),
         };
-        let _ = manager.load_all();
-        manager
+        manager.load_all()?;
+        Ok(manager)
     }
 
     pub fn load_all(&mut self) -> anyhow::Result<()> {
@@ -335,5 +335,9 @@ impl MemoryManager {
         let mut names: Vec<_> = self.memories.keys().cloned().collect();
         names.sort();
         names
+    }
+
+    pub fn memory_count(&self) -> usize {
+        self.memories.len()
     }
 }

@@ -1,7 +1,11 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+};
 
 use abu_tool::ToolCategory;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 // ===================================================================== //
@@ -60,10 +64,23 @@ pub trait UserAuthorizer: Send + Sync {
 //                  Permission Manager
 // ===================================================================== //
 
+/// Serializable representation of a persisted allow/deny rule.
+#[derive(Serialize, Deserialize)]
+struct PersistedRule {
+    tool: String,
+    behavior: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct PersistedPermissions {
+    rules: Vec<PersistedRule>,
+}
+
 pub struct PermissionManager {
     pub mode: ExecutionMode,
     rules: Vec<Rule>,
     authorizer: Box<dyn UserAuthorizer>,
+    permissions_file: Option<PathBuf>,
 }
 
 impl PermissionManager {
@@ -72,7 +89,77 @@ impl PermissionManager {
             mode,
             rules: vec![],
             authorizer: Box::new(authorizer),
+            permissions_file: None,
         }
+    }
+
+    /// Set the file path where "always allow" rules are persisted.
+    pub fn with_permissions_file(mut self, path: PathBuf) -> Self {
+        self.permissions_file = Some(path);
+        self
+    }
+
+    /// Load previously persisted rules from disk.
+    pub fn load_persisted_rules(&mut self) -> Result<(), String> {
+        let Some(ref path) = self.permissions_file else {
+            return Ok(());
+        };
+        if !path.exists() {
+            return Ok(());
+        }
+        let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+        let persisted: PersistedPermissions =
+            serde_json::from_str(&content).map_err(|e| e.to_string())?;
+
+        for pr in persisted.rules {
+            let behavior = match pr.behavior.as_str() {
+                "allow" => Behavior::Allow,
+                "deny" => Behavior::Deny,
+                _ => continue,
+            };
+            self.rules.push(Rule {
+                tool: pr.tool,
+                arg_patterns: HashMap::new(),
+                behavior,
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Append a single rule to the persisted rules file.
+    fn persist_rule(&self, tool_name: &str, behavior: Behavior) {
+        let Some(ref path) = self.permissions_file else {
+            return;
+        };
+
+        let behavior_str = match behavior {
+            Behavior::Allow => "allow",
+            Behavior::Deny => "deny",
+            Behavior::Ask => return, // Ask rules are not persisted
+        };
+
+        // Read existing rules, append new one, deduplicate by tool name
+        let mut persisted = if path.exists() {
+            std::fs::read_to_string(path)
+                .ok()
+                .and_then(|s| serde_json::from_str::<PersistedPermissions>(&s).ok())
+                .unwrap_or(PersistedPermissions { rules: vec![] })
+        } else {
+            PersistedPermissions { rules: vec![] }
+        };
+
+        // Remove existing entry for the same tool (update in place)
+        persisted.rules.retain(|r| r.tool != tool_name);
+        persisted.rules.push(PersistedRule {
+            tool: tool_name.to_string(),
+            behavior: behavior_str.to_string(),
+        });
+
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let _ = std::fs::write(path, serde_json::to_string_pretty(&persisted).unwrap_or_default());
     }   
 
     #[inline]
@@ -204,11 +291,13 @@ impl PermissionManager {
                 let user_res = self.authorizer.ask_user(tool_name, args, &decision.reason).await;
                 match user_res {
                     UserResponse::Always => {
-                        self.rules.push(Rule {
+                        let rule = Rule {
                             tool: tool_name.to_string(),
                             arg_patterns: HashMap::new(),
                             behavior: Behavior::Allow,
-                        });
+                        };
+                        self.persist_rule(tool_name, Behavior::Allow);
+                        self.rules.push(rule);
                         Ok("Allowed by user (rule saved)".to_string())
                     }
                     UserResponse::Yes => {

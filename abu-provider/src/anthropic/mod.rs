@@ -95,6 +95,7 @@ impl ChatProvide for Anthropic {
                 content: final_content,
                 tool_calls,
                 name: None,
+                reasoning_content: None,
             },
             finish_reason,
             usage: Usage {

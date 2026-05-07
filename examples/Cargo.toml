@@ -2,5 +2,5 @@
 resolver = "3"
 members = [
     "learn-claude-code",
-    "claude_code",
+    "abu-code",
 ]

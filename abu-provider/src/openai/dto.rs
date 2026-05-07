@@ -34,10 +34,13 @@ pub struct OpenAiMessageDTO<'a> {
     content: &'a str,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub tool_call_id: Option<&'a str>, 
+    pub tool_call_id: Option<&'a str>,
 
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     tool_calls: Vec<OpenAiToolCallRefDTO<'a>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_content: Option<&'a str>,
 }
 
 #[derive(Serialize)]
@@ -78,6 +81,12 @@ impl<'a> OpenAiChatRequestDTO<'a> {
                 vec![]
             };
 
+            let reasoning = if let ChatMessage::Assistant(m) = m {
+                m.reasoning_content.as_deref()
+            } else {
+                None
+            };
+
             OpenAiMessageDTO {
                 role: m.role(),
                 tool_call_id: if let ChatMessage::Tool(m) = m {
@@ -85,6 +94,7 @@ impl<'a> OpenAiChatRequestDTO<'a> {
                 } else { None  },
                 content: m.content(),
                 tool_calls: tool_calls_dto,
+                reasoning_content: reasoning,
             }
         }).collect();
 
@@ -131,9 +141,11 @@ pub struct OpenAiAssistantMessageDTO {
     #[serde(default)]
     pub content: String,
     #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub name: Option<String>,    
+    pub name: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub tool_calls: Vec<OpenAiToolCallDTO>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub reasoning_content: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -168,6 +180,7 @@ impl OpenAiChatResponseDTO {
             content: choice.message.content,
             tool_calls,
             name: None,
+            reasoning_content: choice.message.reasoning_content,
         };
 
         Ok(ChatResponse {
