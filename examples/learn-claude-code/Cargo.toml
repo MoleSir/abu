@@ -63,6 +63,10 @@ path = "./agents/s14_cron_scheduler_notif.rs"
 name = "s15_agent_teams"
 path = "./agents/s15_agent_teams.rs"
 
+[[bin]]
+name = "s17_autonomous_agents"
+path = "./agents/s17_autonomous_agents.rs"
+
 
 [dependencies]
 abu-agent = { path = "../../abu-agent" }

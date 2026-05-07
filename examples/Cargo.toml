@@ -1,5 +1,6 @@
 [workspace]
-members = [ 
-    "learn-claude-code", 
-    "abucc"
+resolver = "3"
+members = [
+    "learn-claude-code",
+    "claude_code",
 ]

@@ -1,3 +1,0 @@
-# abucc
-
-abu claude code

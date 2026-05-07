@@ -10,11 +10,11 @@ pub use context::*;
 
 use abu_provider::ChatProvide;
 use crate::hook::HookManager;
-use crate::memory::Memory;
+use crate::memory::{Memory, NoMemory};
 use crate::middleware::MiddlewareManager;
 use crate::model::ChatModel;
 use crate::tool::ToolManager;
-use crate::compact::ContextCompact;
+use crate::compact::{ContextCompact, NoContextCompact};
 
 #[derive(Clone)]
 pub struct AgentConfig {
@@ -22,7 +22,7 @@ pub struct AgentConfig {
     pub temperature: f64,
 }
 
-pub struct Agent<P: ChatProvide, M: Memory, C: ContextCompact> {
+pub struct Agent<P: ChatProvide, M: Memory = NoMemory, C: ContextCompact = NoContextCompact> {
     pub config: AgentConfig,
     pub system_prompt: String,
     pub session: Vec<ChatMessage>,
