@@ -25,7 +25,7 @@ pub struct AgentConfig {
 pub struct Agent<P: ChatProvide, M: Memory = NoMemory, C: ContextCompact = NoContextCompact> {
     pub config: AgentConfig,
     pub system_prompt: String,
-    pub session: Vec<ChatMessage>,
+    pub conversations: Vec<ChatMessage>,
 
     pub llm: ChatModel<P>,
     pub memory: M,

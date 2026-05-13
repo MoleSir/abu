@@ -56,7 +56,7 @@ impl<P: ChatProvide, M: Memory, C: ContextCompact> Agent<P, M, C> {
             let control = self.llm_chat(step, &mut context, true).await
                 .with_context(|| format!("chat with llm in step {}", step))?;
             let mut ai_message = extract_agent_control!(control);
-            context.session.push(ai_message.clone().into());
+            context.conversations.push(ai_message.clone().into());
 
             info!(step, role = "AI", content = ai_message.content, "🗣️ LLM Text Response");
             if !ai_message.tool_calls.is_empty() {
@@ -82,7 +82,7 @@ impl<P: ChatProvide, M: Memory, C: ContextCompact> Agent<P, M, C> {
                 };
 
                 // insert tool response
-                context.session.push(ChatMessage::tool(tool_content, tool_call.id.clone()));
+                context.conversations.push(ChatMessage::tool(tool_content, tool_call.id.clone()));
             }
 
             debug!(step, "🔄 Agent step end");
@@ -90,7 +90,7 @@ impl<P: ChatProvide, M: Memory, C: ContextCompact> Agent<P, M, C> {
         }
 
         // 3. 保存 memory + session
-        self.session = context.session;
+        self.conversations = context.conversations;
         match final_result {
             Some(mut final_result) => {
                 info!(output = final_result, "🛑 Finish task with final output");
@@ -120,12 +120,12 @@ impl<P: ChatProvide, M: Memory, C: ContextCompact> Agent<P, M, C> {
         self.hooks.on_memory_search(query, &memory).await.context("memory search hook")?;
 
         // 3. 组装
-        let mut session = self.session.clone();
-        session.push(ChatMessage::user(query));
+        let mut conversations = self.conversations.clone();
+        conversations.push(ChatMessage::user(query));
         let context = AgentContext {
             system_prompt,
             memory,
-            session,
+            conversations,
         };
 
         Ok(AgentControl::Normal(context))
@@ -140,7 +140,7 @@ impl<P: ChatProvide, M: Memory, C: ContextCompact> Agent<P, M, C> {
 
     async fn llm_chat(&mut self, step: usize, context: &mut AgentContext, with_tool: bool) -> AgentResult<AgentControl<AssistantMessage>> {
         let flow = self.middlewares
-            .intercept_llm_input(&mut context.session).await
+            .intercept_llm_input(&mut context.conversations).await
             .context("intercept llm input")?;
         return_middleware_break!(flow);
         

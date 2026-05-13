@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use abu_agent::middleware::{MiddlewareFlow, SystemPromptMiddleware};
 use chrono::Utc;
 
+use crate::memory::MEMORY_GUIDANCE;
+
 pub struct SystemPromptBuilder {
     pub workdir: PathBuf,
 }
@@ -18,7 +20,6 @@ impl SystemPromptBuilder {
         let mut sections: Vec<String> = vec![];
 
         sections.push(self.build_core());
-        sections.push(self.build_claude_md()?);
         sections.push(self.build_dynamic_context());
 
         Ok(sections.join("\n\n"))
@@ -83,7 +84,7 @@ Request: "Create a fib.py and tests"
 
 Request: "Add a /cost command"
   Good TODOs:
-    1: Explore CLI command handling and CmdCtx structure
+    1: Explore CLI command handling and CommandState structure
     2: Implement token counting hook
     3: Implement /cost command handler (blocked_by [1, 2])
     4: Verify /cost output is correct (blocked_by [3])
@@ -112,41 +113,16 @@ Prefer explore over task when you just need to understand code — it's faster a
 
 ## Code exploration
 - Use Glob to find files by pattern (e.g. '**/*.rs' for all Rust files).
-- Use Grep to search file contents with regex (e.g. pattern: 'fn main', path_filter: '**/*.rs')."#,
-            self.workdir
+- Use Grep to search file contents with regex (e.g. pattern: 'fn main', path_filter: '**/*.rs').
+
+{}
+
+## Session state instructions
+- TODOs and background tasks are per-session. Each session has its own TODO list and background tasks. When resuming, TODOs and background tasks are restored along with the conversation.
+- Memories are loaded automatically from disk — you don't need to manually restore them."#,
+            self.workdir,
+            MEMORY_GUIDANCE,
         )
-    }
-
-    fn build_claude_md(&self) -> anyhow::Result<String> {
-        let mut sources: Vec<(PathBuf, String)> = vec![];
-
-        // User-global CLAUDE.md
-        if let Some(home) = dirs::home_dir() {
-            let user_claude = home.join(".claude").join("CLAUDE.md");
-            if user_claude.exists() {
-                let content = std::fs::read_to_string(&user_claude)?;
-                sources.push((user_claude, content));
-            }
-        }
-
-        // Project CLAUDE.md
-        let project_claude = self.workdir.join("CLAUDE.md");
-        if project_claude.exists() {
-            let content = std::fs::read_to_string(&project_claude)?;
-            sources.push((project_claude, content));
-        }
-
-        if sources.is_empty() {
-            return Ok(String::new());
-        }
-
-        let mut parts = vec!["# CLAUDE.md instructions".to_string()];
-        for (path, content) in sources {
-            parts.push(format!("## From {:?}", path));
-            parts.push(content);
-        }
-
-        Ok(parts.join("\n\n"))
     }
 
     fn build_dynamic_context(&self) -> String {

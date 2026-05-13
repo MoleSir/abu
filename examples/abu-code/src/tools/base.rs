@@ -217,8 +217,11 @@ pub fn run_edit(
     path: &str,
     old_string: &str,
     new_string: &str,
-    #[arg(description = "Replace all occurrences instead of exactly one")]
-    replace_all: Option<bool>,
+    #[arg(
+        description = "Replace all occurrences instead of exactly one, default false",
+        default = "false"
+    )]
+    replace_all: bool,
 ) -> String {
     let fp = match safe_path(path) {
         Ok(p) => p,
@@ -229,8 +232,6 @@ pub fn run_edit(
         Ok(c) => c,
         Err(e) => return format!("Error reading file: {}", e),
     };
-
-    let replace_all = replace_all.unwrap_or(false);
 
     if replace_all {
         let count = content.matches(old_string).count();
@@ -379,8 +380,11 @@ fn matches_glob(name: &str, pattern: &str) -> bool {
 )]
 pub fn run_grep(
     pattern: &str,
-    #[arg(description = "Optional glob to filter files, e.g. '*.rs' or '**/*.rs'")]
-    path_filter: Option<String>,
+    #[arg(
+        description = "Optional glob to filter files, e.g. '*.rs' or '**/*.rs'",
+        default = "String::new()"
+    )]
+    path_filter: String,
 ) -> String {
     let workdir = get_workdir();
     let re = match regex::Regex::new(pattern) {
@@ -393,24 +397,23 @@ pub fn run_grep(
     let mut matches_found = 0u32;
 
     let walker: Box<dyn Iterator<Item = walkdir::DirEntry>> = {
-        let filter = path_filter.as_deref().unwrap_or("");
-        if filter.contains("**") {
+        if path_filter.contains("**") {
             Box::new(
                 walkdir::WalkDir::new(workdir)
                     .into_iter()
                     .filter_map(|e| e.ok())
                     .filter(|e| e.file_type().is_file()),
             )
-        } else if filter.is_empty() {
+        } else if path_filter.is_empty() {
             Box::new(
                 walkdir::WalkDir::new(workdir)
                     .into_iter()
                     .filter_map(|e| e.ok())
                     .filter(|e| e.file_type().is_file()),
             )
-        } else if let Some(slash_pos) = filter.rfind('/') {
-            let dir = workdir.join(&filter[..slash_pos]);
-            let pat = filter[slash_pos + 1..].to_string();
+        } else if let Some(slash_pos) = path_filter.rfind('/') {
+            let dir = workdir.join(&path_filter[..slash_pos]);
+            let pat = path_filter[slash_pos + 1..].to_string();
             Box::new(
                 walkdir::WalkDir::new(&dir)
                     .max_depth(1)
@@ -422,7 +425,7 @@ pub fn run_grep(
                     }),
             )
         } else {
-            let pat = filter.to_string();
+            let pat = path_filter.to_string();
             Box::new(
                 walkdir::WalkDir::new(workdir)
                     .max_depth(1)

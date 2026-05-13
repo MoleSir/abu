@@ -86,7 +86,7 @@ impl<P: ChatProvide, M: Memory, C: ContextCompact> AgentBuilder<P, M, C> {
         }        
 
         Ok(Agent {
-            session: vec![],
+            conversations: vec![],
             system_prompt: self.system_prompt,
             config: self.config,
             llm: self.llm,

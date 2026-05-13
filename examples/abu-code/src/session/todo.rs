@@ -18,117 +18,12 @@
 //!     └── 1.json
 //! ```
 
-use std::{
-    collections::HashSet,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex,},
-};
+use std::{collections::HashSet, path::{Path, PathBuf}};
 
-use abu_agent::middleware::{MiddlewareFlow, SystemPromptMiddleware};
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 const CURRENT_LIST_FILE: &str = "current_list_id";
-
-// ============================================================================
-// TODO tools
-// ============================================================================
-
-pub struct TodoCreateTool(pub Arc<Mutex<TodoManager>>);
-impl TodoCreateTool {
-    pub fn new(t: Arc<Mutex<TodoManager>>) -> Self {
-        Self(t)
-    }
-}
-
-#[abu_tool::tool(
-    struct_name = TodoCreateTool,
-    name = "todo_create",
-    description = "Create a new TODO. Use blocked_by for dependency ordering. You MUST create TODOs before using write_file/edit_file."
-)]
-pub async fn todo_create(
-    &self,
-    subject: String,
-    description: String,
-    #[arg(
-        description = "TODO IDs that must be completed before this one",
-        default = "vec![]",
-    )]
-    blocked_by: Vec<u32>,
-) -> anyhow::Result<String> {
-    self.0.lock().unwrap().create(&subject, &description, &blocked_by)
-}
-
-pub struct TodoUpdateTool(pub Arc<Mutex<TodoManager>>);
-impl TodoUpdateTool {
-    pub fn new(t: Arc<Mutex<TodoManager>>) -> Self {
-        Self(t)
-    }
-}
-
-#[abu_tool::tool(
-    struct_name = TodoUpdateTool,
-    name = "todo_update",
-    description = "Update a TODO: set status (pending/in_progress/completed/deleted), or manage dependencies."
-)]
-pub async fn todo_update(
-    &self,
-    todo_id: u32,
-    #[arg(description = "New status", default = "Option::None")]
-    status: Option<TodoStatus>,
-    #[arg(description = "TODO ID that this TODO blocks", default = "Option::None")]
-    add_blocks: Option<u32>,
-    #[arg(description = "TODO ID that blocks this TODO", default = "Option::None")]
-    add_blocked_by: Option<u32>,
-) -> anyhow::Result<String> {
-    let mut mgr = self.0.lock().unwrap();
-    if let Some(id) = add_blocks {
-        mgr.add_blocks(todo_id, id)?;
-    }
-    if let Some(id) = add_blocked_by {
-        mgr.add_blocked_by(todo_id, id)?;
-    }
-    if let Some(s) = status {
-        mgr.set_status(todo_id, s)?;
-    }
-    let todo = mgr.load(todo_id)?;
-    Ok(serde_json::to_string_pretty(&todo)?)
-}
-
-pub struct TodoListTool(pub Arc<Mutex<TodoManager>>);
-impl TodoListTool {
-    pub fn new(t: Arc<Mutex<TodoManager>>) -> Self {
-        Self(t)
-    }
-}
-
-#[abu_tool::tool(
-    struct_name = TodoListTool,
-    name = "todo_list",
-    description = "List all TODOs in the current batch with status and dependencies.",
-    category = "safe"
-)]
-pub async fn todo_list(&self) -> anyhow::Result<String> {
-    self.0.lock().unwrap().list_all()
-}
-
-pub struct TodoGetTool(pub Arc<Mutex<TodoManager>>);
-impl TodoGetTool {
-    pub fn new(t: Arc<Mutex<TodoManager>>) -> Self {
-        Self(t)
-    }
-}
-
-#[abu_tool::tool(
-    struct_name = TodoGetTool,
-    name = "todo_get",
-    description = "Get full details of a TODO by ID.",
-    category = "safe"
-)]
-pub async fn todo_get(&self, todo_id: u32) -> anyhow::Result<String> {
-    let todo = self.0.lock().unwrap().load(todo_id)?;
-    Ok(serde_json::to_string_pretty(&todo)?)
-}
 
 // ============================================================================
 // TODO model
@@ -188,38 +83,20 @@ impl TodoManager {
         Ok(mgr)
     }
 
-    pub fn has_any_state(&self) -> bool {
-        !self.current_list_id.is_empty() && !self.todos.is_empty()
-    }
-
-    pub fn has_active_todos(&self) -> bool {
-        self.todos.iter().any(|t| !is_terminal(&t.status))
-    }
-
-    /// Delete all TODO state and start fresh.
-    pub fn reset(&mut self) -> anyhow::Result<()> {
-        // Remove current_list_id file
-        let current_file = self.todos_dir.join(CURRENT_LIST_FILE);
-        std::fs::remove_file(&current_file)
-            .with_context(|| format!("Failed to remove current list file {:?}", current_file))?;
-
-        // Delete all batch directories
-        for entry in std::fs::read_dir(&self.todos_dir)
-            .with_context(|| format!("Failed to read todos dir {:?}", self.todos_dir))?
-            .flatten()
-        {
-            let path = entry.path();
-            if path.is_dir() {
-                std::fs::remove_dir_all(&path)
-                    .with_context(|| format!("Failed to remove todo batch dir {:?}", path))?;
-            }
-        }
-
+    /// Reinitialize from a new todos directory (used when switching sessions).
+    pub fn reinit(&mut self, todos_dir: &Path) -> anyhow::Result<()> {
+        self.todos_dir = todos_dir.to_path_buf();
+        self.current_list_id = String::new();
         self.todos.clear();
         self.next_id = 1;
         self.terminal_ids.clear();
-        self.new_list()?;
+        std::fs::create_dir_all(&self.todos_dir)?;
+        self.load_or_create_list()?;
         Ok(())
+    }
+
+    pub fn has_any_state(&self) -> bool {
+        !self.current_list_id.is_empty() && !self.todos.is_empty()
     }
 
     pub fn batch_id(&self) -> Option<&str> {
@@ -599,30 +476,3 @@ These tools will REJECT your call if no TODOs exist."
     }
 }
 
-// ============================================================================
-// TodoMiddleware — injects TODO status at the TOP of the system prompt
-// ============================================================================
-
-pub struct TodoMiddleware {
-    pub todo_manager: Arc<Mutex<TodoManager>>,
-}
-
-impl TodoMiddleware {
-    pub fn new(todo_manager: Arc<Mutex<TodoManager>>) -> Self {
-        Self { todo_manager }
-    }
-}
-
-#[async_trait::async_trait]
-impl SystemPromptMiddleware for TodoMiddleware {
-    type Error = anyhow::Error;
-
-    async fn intercept(
-        &mut self,
-        prompt: &mut String,
-    ) -> Result<MiddlewareFlow, Self::Error> {
-        let summary = self.todo_manager.lock().unwrap().status_summary();
-        prompt.insert_str(0, &format!("# Current TODOs\n\n{}\n\n---\n\n", summary));
-        Ok(MiddlewareFlow::Continue)
-    }
-}

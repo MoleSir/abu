@@ -23,15 +23,15 @@ impl ContextCompact for SliceWindowCompact {
     type Error = Infallible;
 
     async fn compact(&mut self, context: &mut AgentContext) -> Result<(), Self::Error> {
-        if context.session.len() > self.window_size {
+        if context.conversations.len() > self.window_size {
             return Ok(())
         }
 
-        let mut session = vec![];
-        std::mem::swap(&mut session, &mut context.session); 
+        let mut conversations = vec![];
+        std::mem::swap(&mut conversations, &mut context.conversations); 
 
-        let skip_size = session.len() - self.window_size;
-        context.session = session.into_iter().skip(skip_size).collect();
+        let skip_size = conversations.len() - self.window_size;
+        context.conversations = conversations.into_iter().skip(skip_size).collect();
 
         Ok(())
     }

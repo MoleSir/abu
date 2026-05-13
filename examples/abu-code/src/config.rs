@@ -1,4 +1,5 @@
 use abu_agent::model::ChatModel;
+use abu_provider::deepseek::DeepSeek;
 
 /// Create a ChatModel from environment variables.
 ///
@@ -7,14 +8,14 @@ use abu_agent::model::ChatModel;
 ///   DEEPSEEK_API_KEY  — API key
 ///
 /// Set DEEPSEEK_BASE_URL to use any OpenAI-compatible provider.
-pub fn create_chat_model() -> anyhow::Result<ChatModel<impl abu_provider::ChatProvide>> {
+pub fn create_chat_model() -> anyhow::Result<ChatModel<DeepSeek>> {
     let model_name = std::env::var("CHAT_MODEL").unwrap_or_else(|_| "deepseek-chat".to_string());
     Ok(ChatModel::deepseek(&model_name)?)
 }
 
 /// Create a second ChatModel for compaction/summarization.
 /// Uses CHAT_MODEL_COMPACT if set, otherwise falls back to CHAT_MODEL.
-pub fn create_compact_model() -> anyhow::Result<ChatModel<impl abu_provider::ChatProvide>> {
+pub fn create_compact_model() -> anyhow::Result<ChatModel<DeepSeek>> {
     let model_name = std::env::var("CHAT_MODEL_COMPACT")
         .or_else(|_| std::env::var("CHAT_MODEL"))
         .unwrap_or_else(|_| "deepseek-chat".to_string());

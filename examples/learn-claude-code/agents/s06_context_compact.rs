@@ -100,14 +100,14 @@ impl<P: ChatProvide> ContextCompact for SummarizationCompact<P> {
     type Error = anyhow::Error;
 
     async fn compact(&mut self, context: &mut AgentContext) -> Result<(), Self::Error> {
-        self.micro_compact(&mut context.session)?;
+        self.micro_compact(&mut context.conversations)?;
 
-        if context.session.len() + context.memory.len() + 1 > self.summary_threshold {
+        if context.conversations.len() + context.memory.len() + 1 > self.summary_threshold {
             return Ok(())
         }
 
         // collection all messages
-        let buffer_text = context.session.iter()
+        let buffer_text = context.conversations.iter()
             .map(|m| Self::format_message(m))
             .collect::<Vec<_>>()
             .join("\n");
@@ -129,7 +129,7 @@ impl<P: ChatProvide> ContextCompact for SummarizationCompact<P> {
         session.push(ChatMessage::user(format!("[Conversation compressed]: {}", response.content)));
         session.push(ChatMessage::assistant("Understood. I have the context from the summary. Continuing.", []));
 
-        context.session = session;
+        context.conversations = session;
 
         Ok(())
     }

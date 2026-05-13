@@ -1,4 +1,4 @@
-use std::{io::Write, path::Path};
+use std::{io::Write, path::PathBuf};
 
 use abu_agent::tool::{ExecutionMode, Matcher, PermissionManager, UserAuthorizer, UserResponse};
 
@@ -29,8 +29,8 @@ impl UserAuthorizer for InputUserAuthorizer {
     }
 }
 
-pub fn build_permission(data_dir: &Path) -> PermissionManager {
-    let permissions_file = data_dir.join("permissions.json");
+pub fn build_permission(permissions_file: impl Into<PathBuf>) -> PermissionManager {
+    let permissions_file = permissions_file.into();
 
     let mut pm = PermissionManager::new(ExecutionMode::Auto, InputUserAuthorizer)
         // Deny destructive commands
@@ -50,6 +50,7 @@ pub fn build_permission(data_dir: &Path) -> PermissionManager {
         .with_allow("todo_create")
         .with_allow("todo_update")
         .with_allow("save_memory")
+        .with_allow("fetch_memory")
         // Subagents — each has its own permission context
         .with_allow("task")
         .with_allow("explore")

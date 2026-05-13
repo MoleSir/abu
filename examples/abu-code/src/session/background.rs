@@ -3,18 +3,12 @@
 
 use std::{
     collections::HashMap,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Stdio,
-    sync::Arc,
 };
-use abu_agent::middleware::{LlmInputMiddleware, MiddlewareFlow};
-use abu_provider::chat::ChatMessage;
 use anyhow::Context;
 use chrono::Utc;
-use tokio::{
-    process::Command,
-    sync::RwLock,
-};
+use tokio::process::Command;
 
 use crate::tools;
 
@@ -78,8 +72,8 @@ impl BackgroundManager {
 
                 let finished = status
                     .get("error")
-                    .map(|_| "previous session (failed)")
-                    .unwrap_or("previous session (completed)");
+                    .map(|_| "previous conversation (failed)")
+                    .unwrap_or("previous conversation (completed)");
 
                 let output = self
                     .log_dir
@@ -91,7 +85,7 @@ impl BackgroundManager {
                     id.clone(),
                     BackgroundTask {
                         id,
-                        command: "(from previous session)".to_string(),
+                        command: "(from previous conversation)".to_string(),
                         started: String::new(),
                         finished: Some(finished.to_string()),
                         output: output_str,
@@ -100,6 +94,17 @@ impl BackgroundManager {
                 );
             }
         }
+        Ok(())
+    }
+
+    /// Reinitialize from a new log directory (used when switching sessions).
+    pub fn reinit(&mut self, log_dir: &Path) -> anyhow::Result<()> {
+        self.log_dir = log_dir.to_path_buf();
+        self.tasks.clear();
+        self.notifications.clear();
+        self.counter = 0;
+        std::fs::create_dir_all(&self.log_dir)?;
+        self.load_existing_results()?;
         Ok(())
     }
 
@@ -320,20 +325,6 @@ impl BackgroundManager {
         !self.tasks.is_empty()
     }
 
-    /// Delete all background task logs and reset in-memory state.
-    pub fn clear(&mut self) -> anyhow::Result<()> {
-        let entries = std::fs::read_dir(&self.log_dir)
-            .with_context(|| format!("Failed to read background log dir {:?}", self.log_dir))?;
-        for entry in entries.flatten() {
-            std::fs::remove_file(entry.path())
-                .with_context(|| format!("Failed to remove background file {:?}", entry.path()))?;
-        }
-        self.tasks.clear();
-        self.notifications.clear();
-        self.counter = 0;
-        Ok(())
-    }
-
     /// List all background tasks.
     pub fn list_all(&self) -> String {
         if self.tasks.is_empty() {
@@ -353,103 +344,5 @@ impl BackgroundManager {
             ));
         }
         lines.join("\n")
-    }
-}
-
-// ============================================================================
-// Background tools
-// ============================================================================
-
-pub struct BackgroundRunTool {
-    pub manager: Arc<RwLock<BackgroundManager>>,
-}
-
-impl BackgroundRunTool {
-    pub fn new(manager: Arc<RwLock<BackgroundManager>>) -> Self {
-        Self { manager }
-    }
-}
-
-#[abu_tool::tool(
-    struct_name = BackgroundRunTool,
-    name = "background_run",
-    description = "Run a shell command in the background. Returns a task ID immediately. Use background_check or background_list to track progress."
-)]
-pub async fn background_run(&self, command: String) -> String {
-    let id = self.manager.write().await.spawn(&command);
-    format!("Background task started: {}\nCommand: {}", id, command)
-}
-
-pub struct BackgroundCheckTool {
-    pub manager: Arc<RwLock<BackgroundManager>>,
-}
-
-impl BackgroundCheckTool {
-    pub fn new(manager: Arc<RwLock<BackgroundManager>>) -> Self {
-        Self { manager }
-    }
-}
-
-#[abu_tool::tool(
-    struct_name = BackgroundCheckTool,
-    name = "background_check",
-    description = "Check the status of a background task by its ID."
-)]
-pub async fn background_check(&self, task_id: String) -> String {
-    self.manager.write().await.check(&task_id)
-}
-
-pub struct BackgroundListTool {
-    pub manager: Arc<RwLock<BackgroundManager>>,
-}
-
-impl BackgroundListTool {
-    pub fn new(manager: Arc<RwLock<BackgroundManager>>) -> Self {
-        Self { manager }
-    }
-}
-
-#[abu_tool::tool(
-    struct_name = BackgroundListTool,
-    name = "background_list",
-    description = "List all background tasks and their status.",
-    category = "safe"
-)]
-pub async fn background_list(&self) -> String {
-    self.manager.read().await.list_all()
-}
-
-// ============================================================================
-// BackgroundMiddleware — injects completion notifications into LLM input
-// ============================================================================
-
-pub struct BackgroundMiddleware {
-    pub manager: Arc<RwLock<BackgroundManager>>,
-}
-
-impl BackgroundMiddleware {
-    pub fn new(manager: Arc<RwLock<BackgroundManager>>) -> Self {
-        Self { manager }
-    }
-}
-
-#[async_trait::async_trait]
-impl LlmInputMiddleware for BackgroundMiddleware {
-    type Error = anyhow::Error;
-
-    async fn intercept(
-        &mut self,
-        messages: &mut Vec<ChatMessage>,
-    ) -> Result<MiddlewareFlow, Self::Error> {
-        let mut manager = self.manager.write().await;
-        manager.check_completed()
-            .with_context(|| "Failed to check for completed background tasks")?;
-        let notifications = manager.drain_notifications();
-
-        for notification in notifications {
-            messages.push(ChatMessage::user(notification));
-        }
-
-        Ok(MiddlewareFlow::Continue)
     }
 }

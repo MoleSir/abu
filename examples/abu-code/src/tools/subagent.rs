@@ -8,7 +8,7 @@ use abu_agent::{
 use abu_provider::ChatProvide;
 
 use crate::{
-    hook::SilentHook,
+    ui::hook::SilentHook,
     tools::{Bash, EditFile, Glob, Grep, ReadFile, WriteFile},
 };
 

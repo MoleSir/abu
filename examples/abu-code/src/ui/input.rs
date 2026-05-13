@@ -76,13 +76,13 @@ impl Completer for AbuHelper {
 
         // At the start of input, complete slash commands from the registry
         if word_start == 0 && (word.starts_with('/') || word.is_empty()) {
-            let all = crate::command::Command::all();
+            let all = crate::ui::command::all_commands();
             let completions: Vec<Pair> = all
                 .iter()
-                .filter(|info| info.name.starts_with(word) || word.is_empty())
+                .filter(|info| info.name().starts_with(word) || word.is_empty())
                 .map(|info| Pair {
-                    display: info.name.to_string(),
-                    replacement: format!("{} ", info.name),
+                    display: format!("{} - {}", info.name(), info.description()),
+                    replacement: format!("{} ", info.name()),
                 })
                 .collect();
             return Ok((word_start, completions));
@@ -124,11 +124,12 @@ impl Hinter for AbuHelper {
     type Hint = String;
 
     fn hint(&self, line: &str, _pos: usize, _ctx: &RlContext<'_>) -> Option<Self::Hint> {
-        if line.is_empty() {
-            return Some("Type /help for commands".into());
-        }
         if line == "/" {
-            return Some("help, tools, mode, memory, todos, sessions, clear, save, quit".into());
+            let mut command_hint: String = "\n".to_string();
+            for command in crate::ui::command::all_commands() {
+                command_hint.push_str(&format!("{} - {}\n", command.name(), command.description()));
+            }
+            return Some(command_hint);
         }
         None
     }
